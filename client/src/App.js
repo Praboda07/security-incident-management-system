@@ -1,6 +1,10 @@
 
 import React, { useEffect, useState } from "react";
 import "./App.css";
+
+import Login from "./components/Login";
+import Register from "./components/Register";
+
 import {
   getIncidents,
   createIncident,
@@ -16,13 +20,30 @@ const initialForm = {
 };
 
 function App() {
+  const [auth, setAuth] = useState(() => {
+    const saved = sessionStorage.getItem("simsAuth");
+
+    if (!saved) return null;
+
+    try {
+      return JSON.parse(saved);
+    } catch {
+      sessionStorage.removeItem("simsAuth");
+      return null;
+    }
+  });
+
+  const [page, setPage] = useState("login");
+
   const [incidents, setIncidents] = useState([]);
   const [form, setForm] = useState(initialForm);
   const [editingId, setEditingId] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+
+  const isAuthenticated = Boolean(auth?.token);
 
   async function loadIncidents() {
     try {
@@ -37,8 +58,36 @@ function App() {
   }
 
   useEffect(() => {
-    loadIncidents();
-  }, []);
+    if (isAuthenticated) {
+      setLoading(true);
+      loadIncidents();
+    } else {
+      setLoading(false);
+    }
+  }, [isAuthenticated]);
+
+  function handleLogin(data) {
+    const authData = {
+      token: data.token,
+      user: data.user,
+    };
+
+    sessionStorage.setItem("simsAuth", JSON.stringify(authData));
+    setAuth(authData);
+    setPage("dashboard");
+    setError("");
+  }
+
+  function handleLogout() {
+    sessionStorage.removeItem("simsAuth");
+    setAuth(null);
+    setPage("login");
+    setIncidents([]);
+    setForm(initialForm);
+    setEditingId(null);
+    setError("");
+    setMessage("");
+  }
 
   function handleChange(event) {
     const { name, value } = event.target;
@@ -77,6 +126,7 @@ function App() {
       category: incident.category,
       severity: incident.severity,
     });
+
     setEditingId(incident._id);
     setMessage("");
     setError("");
@@ -96,14 +146,36 @@ function App() {
     try {
       await deleteIncident(id);
       setMessage("Incident deleted successfully.");
+
       if (editingId === id) {
         setEditingId(null);
         setForm(initialForm);
       }
+
       await loadIncidents();
     } catch (err) {
       setError(err.message || "Unable to delete the incident.");
     }
+  }
+
+  if (!isAuthenticated && page === "register") {
+    return (
+      <Register
+        onRegisterSuccess={() => {
+          setPage("login");
+        }}
+        onShowLogin={() => setPage("login")}
+      />
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <Login
+        onLogin={handleLogin}
+        onShowRegister={() => setPage("register")}
+      />
+    );
   }
 
   return (
@@ -113,7 +185,20 @@ function App() {
           <h1>SIMS</h1>
           <p>Security Incident Management System</p>
         </div>
-        <span className="system-status">System Dashboard</span>
+
+        <div className="header-user">
+          <span className="system-status">
+            Welcome, {auth.user?.name || "User"}
+          </span>
+
+          <button
+            type="button"
+            className="logout-button"
+            onClick={handleLogout}
+          >
+            Logout
+          </button>
+        </div>
       </header>
 
       <main className="dashboard">
@@ -127,12 +212,14 @@ function App() {
             <p>Total Incidents</p>
             <h3>{incidents.length}</h3>
           </div>
+
           <div className="summary-card">
             <p>Open Incidents</p>
             <h3>
               {incidents.filter((item) => item.status === "Open").length}
             </h3>
           </div>
+
           <div className="summary-card">
             <p>Critical Incidents</p>
             <h3>
@@ -254,6 +341,7 @@ function App() {
                     <th>Actions</th>
                   </tr>
                 </thead>
+
                 <tbody>
                   {incidents.map((incident) => (
                     <tr key={incident._id}>
@@ -270,6 +358,7 @@ function App() {
                           >
                             Edit
                           </button>
+
                           <button
                             type="button"
                             className="delete-button"

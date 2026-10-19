@@ -257,3 +257,133 @@ th {
     gap: 8px;
   }
 }
+
+/* Login and Register pages */
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 24px;
+  box-sizing: border-box;
+  background: #f4f6ef;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 420px;
+  padding: 32px;
+  box-sizing: border-box;
+  background: #ffffff;
+  border: 1px solid #dce5d6;
+  border-radius: 16px;
+  box-shadow: 0 8px 28px rgba(35, 65, 45, 0.09);
+}
+
+.auth-card h1 {
+  margin: 0 0 8px;
+  color: #355b45;
+}
+
+.auth-card > p {
+  color: #68756a;
+  line-height: 1.5;
+}
+
+.auth-card label {
+  display: block;
+  margin: 18px 0 7px;
+  color: #344b3b;
+  font-weight: 600;
+}
+
+.auth-card input {
+  width: 100%;
+  padding: 12px;
+  box-sizing: border-box;
+  border: 1px solid #ccd7cb;
+  border-radius: 8px;
+  font-size: 15px;
+}
+
+.auth-card input:focus {
+  outline: 2px solid #9bbca1;
+  border-color: #537d60;
+}
+
+.auth-card > button[type="submit"] {
+  width: 100%;
+  margin-top: 24px;
+  padding: 13px;
+  border: none;
+  border-radius: 8px;
+  background: #42694f;
+  color: white;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.auth-card > button[type="submit"]:hover {
+  background: #34553f;
+}
+
+.auth-card button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.auth-card .auth-switch {
+  margin-top: 20px;
+  text-align: center;
+  font-size: 14px;
+}
+
+.auth-link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: #42694f;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.auth-error {
+  color: #b42318 !important;
+  font-size: 14px;
+}
+
+.auth-success {
+  color: #237547 !important;
+  font-size: 14px;
+}
+
+.header-user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.logout-button {
+  padding: 9px 15px;
+  border: 1px solid #d5e0d4;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #355b45;
+  cursor: pointer;
+}
+
+.logout-button:hover {
+  background: #edf3e9;
+}
+
+@media (max-width: 600px) {
+  .auth-card {
+    padding: 24px;
+  }
+
+  .header-user {
+    align-items: flex-start;
+  }
+}
