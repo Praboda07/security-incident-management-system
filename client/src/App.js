@@ -34,7 +34,6 @@ function App() {
   });
 
   const [page, setPage] = useState("login");
-
   const [incidents, setIncidents] = useState([]);
   const [form, setForm] = useState(initialForm);
   const [editingId, setEditingId] = useState(null);
@@ -44,6 +43,7 @@ function App() {
   const [message, setMessage] = useState("");
 
   const isAuthenticated = Boolean(auth?.token);
+  const isAdmin = auth?.user?.role === "admin";
 
   async function loadIncidents() {
     try {
@@ -133,6 +133,24 @@ function App() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
+  async function handleStatusChange(incident, newStatus) {
+    if (!isAdmin || newStatus === incident.status) return;
+
+    setError("");
+    setMessage("");
+
+    try {
+      await updateIncident(incident._id, {
+        status: newStatus,
+      });
+
+      setMessage("Incident status updated successfully.");
+      await loadIncidents();
+    } catch (err) {
+      setError(err.message || "Failed to update incident status.");
+    }
+  }
+
   async function handleDelete(id) {
     const confirmed = window.confirm(
       "Are you sure you want to delete this incident?"
@@ -161,9 +179,7 @@ function App() {
   if (!isAuthenticated && page === "register") {
     return (
       <Register
-        onRegisterSuccess={() => {
-          setPage("login");
-        }}
+        onRegisterSuccess={() => setPage("login")}
         onShowLogin={() => setPage("login")}
       />
     );
@@ -189,6 +205,7 @@ function App() {
         <div className="header-user">
           <span className="system-status">
             Welcome, {auth.user?.name || "User"}
+            {isAdmin ? " (Admin)" : ""}
           </span>
 
           <button
@@ -229,7 +246,9 @@ function App() {
         </section>
 
         <section className="incident-section form-section">
-          <h2>{editingId ? "Edit Incident" : "Report a Security Incident"}</h2>
+          <h2>
+            {editingId ? "Edit Incident" : "Report a Security Incident"}
+          </h2>
 
           <form onSubmit={handleSubmit} className="incident-form">
             <label htmlFor="title">Incident Title</label>
@@ -321,9 +340,12 @@ function App() {
         <section className="incident-section">
           <h2>Reported Incidents</h2>
 
+          {error && <p className="error">{error}</p>}
+          {message && <p className="success-message">{message}</p>}
+
           {loading && <p>Loading incidents...</p>}
 
-          {!loading && !error && incidents.length === 0 && (
+          {!loading && incidents.length === 0 && (
             <p className="empty-message">
               No incidents have been reported yet.
             </p>
@@ -348,7 +370,29 @@ function App() {
                       <td>{incident.title}</td>
                       <td>{incident.category}</td>
                       <td>{incident.severity}</td>
-                      <td>{incident.status}</td>
+
+                      <td>
+                        {isAdmin ? (
+                          <select
+                            aria-label={`Status for ${incident.title}`}
+                            value={incident.status}
+                            onChange={(event) =>
+                              handleStatusChange(
+                                incident,
+                                event.target.value
+                              )
+                            }
+                          >
+                            <option value="Open">Open</option>
+                            <option value="In Progress">In Progress</option>
+                            <option value="Resolved">Resolved</option>
+                            <option value="Closed">Closed</option>
+                          </select>
+                        ) : (
+                          incident.status
+                        )}
+                      </td>
+
                       <td>
                         <div className="table-actions">
                           <button
