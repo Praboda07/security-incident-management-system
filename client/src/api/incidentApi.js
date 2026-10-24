@@ -1,62 +1,55 @@
 
 const API_URL = "http://localhost:5000/api/incidents";
 
-export async function getIncidents() {
-  const response = await fetch(API_URL);
+async function request(url, options = {}) {
+  const savedAuth = sessionStorage.getItem("simsAuth");
+  const auth = savedAuth ? JSON.parse(savedAuth) : null;
+
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      ...(options.headers || {}),
+      ...(auth?.token
+        ? { Authorization: `Bearer ${auth.token}` }
+        : {}),
+    },
+  });
+
+  const data = await response.json();
 
   if (!response.ok) {
-    throw new Error("Failed to fetch incidents");
+    throw new Error(data.message || "Request failed");
   }
 
-  return response.json();
+  return data;
+}
+
+export async function getIncidents() {
+  return request(API_URL);
 }
 
 export async function createIncident(incidentData) {
-  const response = await fetch(API_URL, {
+  return request(API_URL, {
     method: "POST",
     headers: {
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
     },
-    body: JSON.stringify(incidentData)
+    body: JSON.stringify(incidentData),
   });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || "Failed to create incident");
-  }
-
-  return data;
 }
 
 export async function updateIncident(id, incidentData) {
-  const response = await fetch(`${API_URL}/${id}`, {
+  return request(`${API_URL}/${id}`, {
     method: "PUT",
     headers: {
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
     },
-    body: JSON.stringify(incidentData)
+    body: JSON.stringify(incidentData),
   });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || "Failed to update incident");
-  }
-
-  return data;
 }
 
 export async function deleteIncident(id) {
-  const response = await fetch(`${API_URL}/${id}`, {
-    method: "DELETE"
+  return request(`${API_URL}/${id}`, {
+    method: "DELETE",
   });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || "Failed to delete incident");
-  }
-
-  return data;
 }

@@ -6,12 +6,12 @@ const incidentSchema = new mongoose.Schema(
     title: {
       type: String,
       required: true,
-      trim: true
+      trim: true,
     },
     description: {
       type: String,
       required: true,
-      trim: true
+      trim: true,
     },
     category: {
       type: String,
@@ -21,21 +21,28 @@ const incidentSchema = new mongoose.Schema(
         "Malware",
         "Unauthorized Access",
         "Suspicious Activity",
-        "Other"
-      ]
+        "Other",
+      ],
     },
     severity: {
       type: String,
       enum: ["Low", "Medium", "High", "Critical"],
-      default: "Medium"
+      default: "Medium",
     },
     status: {
       type: String,
       enum: ["Open", "In Progress", "Resolved"],
-      default: "Open"
-    }
+      default: "Open",
+    },
+    reportedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+  }
 );
 
 module.exports = mongoose.model("Incident", incidentSchema);
