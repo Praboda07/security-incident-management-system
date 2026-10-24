@@ -12,6 +12,10 @@ import {
   updateIncident,
 } from "./api/incidentApi";
 
+import { getEmployees } from "./api/authApi";
+
+const API_URL = "http://localhost:5000/api/auth";
+
 const initialForm = {
   title: "",
   description: "",
@@ -34,20 +38,33 @@ function App() {
   });
 
   const [page, setPage] = useState("login");
+  const [activeSection, setActiveSection] = useState("incidents");
+
   const [incidents, setIncidents] = useState([]);
+  const [employees, setEmployees] = useState([]);
+  const [employeeRequests, setEmployeeRequests] = useState([]);
+
   const [form, setForm] = useState(initialForm);
   const [editingId, setEditingId] = useState(null);
+
   const [loading, setLoading] = useState(false);
+  const [employeeLoading, setEmployeeLoading] = useState(false);
+  const [requestsLoading, setRequestsLoading] = useState(false);
+  const [reviewingId, setReviewingId] = useState(null);
   const [saving, setSaving] = useState(false);
+
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [requestError, setRequestError] = useState("");
+  const [requestMessage, setRequestMessage] = useState("");
 
   const isAuthenticated = Boolean(auth?.token);
   const isAdmin = auth?.user?.role === "admin";
 
   async function loadIncidents() {
+    setLoading(true);
+
     try {
-      setError("");
       const data = await getIncidents();
       setIncidents(data);
     } catch (err) {
@@ -57,9 +74,57 @@ function App() {
     }
   }
 
+  async function loadEmployees() {
+    setEmployeeLoading(true);
+    setError("");
+
+    try {
+      const data = await getEmployees();
+      setEmployees(data);
+    } catch (err) {
+      setError(err.message || "Failed to load employees.");
+    } finally {
+      setEmployeeLoading(false);
+    }
+  }
+
+  async function loadEmployeeRequests() {
+    if (!auth?.token || !isAdmin) return;
+
+    setRequestsLoading(true);
+    setRequestError("");
+
+    try {
+      const response = await fetch(
+        `${API_URL}/employee-requests`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${auth.token}`,
+          },
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.message || "Failed to load registration requests."
+        );
+      }
+
+      setEmployeeRequests(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setRequestError(
+        err.message || "Failed to load registration requests."
+      );
+    } finally {
+      setRequestsLoading(false);
+    }
+  }
+
   useEffect(() => {
     if (isAuthenticated) {
-      setLoading(true);
       loadIncidents();
     } else {
       setLoading(false);
@@ -73,29 +138,45 @@ function App() {
     };
 
     sessionStorage.setItem("simsAuth", JSON.stringify(authData));
+
     setAuth(authData);
     setPage("dashboard");
+    setActiveSection("incidents");
     setError("");
+    setMessage("");
+    setRequestError("");
+    setRequestMessage("");
   }
 
   function handleLogout() {
     sessionStorage.removeItem("simsAuth");
+
     setAuth(null);
     setPage("login");
+    setActiveSection("incidents");
     setIncidents([]);
+    setEmployees([]);
+    setEmployeeRequests([]);
     setForm(initialForm);
     setEditingId(null);
     setError("");
     setMessage("");
+    setRequestError("");
+    setRequestMessage("");
   }
 
   function handleChange(event) {
     const { name, value } = event.target;
-    setForm((previous) => ({ ...previous, [name]: value }));
+
+    setForm((previous) => ({
+      ...previous,
+      [name]: value,
+    }));
   }
 
   async function handleSubmit(event) {
     event.preventDefault();
+
     setSaving(true);
     setError("");
     setMessage("");
@@ -111,6 +192,7 @@ function App() {
 
       setForm(initialForm);
       setEditingId(null);
+
       await loadIncidents();
     } catch (err) {
       setError(err.message || "Unable to save the incident.");
@@ -130,7 +212,11 @@ function App() {
     setEditingId(incident._id);
     setMessage("");
     setError("");
-    window.scrollTo({ top: 0, behavior: "smooth" });
+
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
   }
 
   async function handleStatusChange(incident, newStatus) {
@@ -163,6 +249,7 @@ function App() {
 
     try {
       await deleteIncident(id);
+
       setMessage("Incident deleted successfully.");
 
       if (editingId === id) {
@@ -173,6 +260,136 @@ function App() {
       await loadIncidents();
     } catch (err) {
       setError(err.message || "Unable to delete the incident.");
+    }
+  }
+
+  async function openEmployeeManagement() {
+    setActiveSection("employees");
+    setError("");
+    setMessage("");
+    setRequestError("");
+    setRequestMessage("");
+
+    await Promise.all([
+      loadEmployees(),
+      loadEmployeeRequests(),
+    ]);
+  }
+
+  async function reviewEmployeeRequest(id, status) {
+    if (!auth?.token || !isAdmin) return;
+
+    setReviewingId(id);
+    setRequestError("");
+    setRequestMessage("");
+
+    try {
+      const response = await fetch(
+        `${API_URL}/employee-requests/${id}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${auth.token}`,
+          },
+          body: JSON.stringify({ status }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.message || "Failed to update registration request."
+        );
+      }
+
+      setRequestMessage(
+        status === "approved"
+          ? "Employee registration approved successfully."
+          : "Employee registration rejected successfully."
+      );
+
+      await Promise.all([
+        loadEmployeeRequests(),
+        loadEmployees(),
+      ]);
+    } catch (err) {
+      setRequestError(
+        err.message || "Failed to update registration request."
+      );
+    } finally {
+      setReviewingId(null);
+    }
+  }
+
+  async function editEmployee(employee) {
+    const name = window.prompt("Enter employee name:", employee.name);
+    if (name === null) return;
+
+    const email = window.prompt("Enter employee email:", employee.email);
+    if (email === null) return;
+
+    const employeeId = window.prompt(
+      "Enter employee ID:",
+      employee.employeeId || ""
+    );
+    if (employeeId === null) return;
+
+    try {
+      const response = await fetch(
+        `${API_URL}/employees/${employee._id}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${auth.token}`,
+          },
+          body: JSON.stringify({ name, email, employeeId }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to edit employee.");
+      }
+
+      setMessage("Employee updated successfully.");
+      await loadEmployees();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function removeEmployee(employee) {
+    const confirmed = window.confirm(
+      `Remove employee ${employee.name}? This action cannot be undone.`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      const response = await fetch(
+        `${API_URL}/employees/${employee._id}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${auth.token}`,
+          },
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to remove employee.");
+      }
+
+      setMessage("Employee removed successfully.");
+      await loadEmployees();
+    } catch (err) {
+      setError(err.message);
     }
   }
 
@@ -194,6 +411,24 @@ function App() {
     );
   }
 
+  const totalIncidents = incidents.length;
+
+  const openIncidents = incidents.filter(
+    (item) => item.status === "Open"
+  ).length;
+
+  const criticalIncidents = incidents.filter(
+    (item) => item.severity === "Critical"
+  ).length;
+
+  const inProgressIncidents = incidents.filter(
+    (item) => item.status === "In Progress"
+  ).length;
+
+  const resolvedIncidents = incidents.filter(
+    (item) => item.status === "Resolved"
+  ).length;
+
   return (
     <div className="app">
       <header className="header">
@@ -205,7 +440,7 @@ function App() {
         <div className="header-user">
           <span className="system-status">
             Welcome, {auth.user?.name || "User"}
-            {isAdmin ? " (Admin)" : ""}
+            {isAdmin ? " (Admin)" : " (Employee)"}
           </span>
 
           <button
@@ -220,205 +455,435 @@ function App() {
 
       <main className="dashboard">
         <section className="welcome">
-          <h2>Incident Dashboard</h2>
-          <p>Monitor and manage reported security incidents.</p>
+          <h2>
+            {isAdmin ? "Admin Dashboard" : "Employee Dashboard"}
+          </h2>
+
+          <p>
+            {isAdmin
+              ? "Monitor and manage your organization's security incidents."
+              : "Report security incidents and track your reported complaints."}
+          </p>
         </section>
+
+        {isAdmin && (
+          <nav className="dashboard-nav">
+            <button
+              type="button"
+              className={
+                activeSection === "incidents" ? "active" : ""
+              }
+              onClick={() => {
+                setActiveSection("incidents");
+                setError("");
+                setMessage("");
+              }}
+            >
+              Incident Management
+            </button>
+
+            <button
+              type="button"
+              className={
+                activeSection === "employees" ? "active" : ""
+              }
+              onClick={openEmployeeManagement}
+            >
+              Employee Management
+            </button>
+          </nav>
+        )}
 
         <section className="summary">
           <div className="summary-card">
             <p>Total Incidents</p>
-            <h3>{incidents.length}</h3>
+            <h3>{totalIncidents}</h3>
           </div>
 
           <div className="summary-card">
             <p>Open Incidents</p>
-            <h3>
-              {incidents.filter((item) => item.status === "Open").length}
-            </h3>
+            <h3>{openIncidents}</h3>
           </div>
 
           <div className="summary-card">
             <p>Critical Incidents</p>
-            <h3>
-              {incidents.filter((item) => item.severity === "Critical").length}
-            </h3>
+            <h3>{criticalIncidents}</h3>
           </div>
+
+          {isAdmin && (
+            <>
+              <div className="summary-card">
+                <p>In Progress</p>
+                <h3>{inProgressIncidents}</h3>
+              </div>
+
+              <div className="summary-card">
+                <p>Resolved Incidents</p>
+                <h3>{resolvedIncidents}</h3>
+              </div>
+            </>
+          )}
         </section>
 
-        <section className="incident-section form-section">
-          <h2>
-            {editingId ? "Edit Incident" : "Report a Security Incident"}
-          </h2>
+        {error && <p className="error">{error}</p>}
+        {message && <p className="success-message">{message}</p>}
 
-          <form onSubmit={handleSubmit} className="incident-form">
-            <label htmlFor="title">Incident Title</label>
-            <input
-              id="title"
-              name="title"
-              value={form.title}
-              onChange={handleChange}
-              placeholder="Enter incident title"
-              required
-            />
+        {!isAdmin && (
+          <section className="incident-section form-section">
+            <h2>
+              {editingId
+                ? "Edit Incident"
+                : "Report a Security Incident"}
+            </h2>
 
-            <label htmlFor="description">Description</label>
-            <textarea
-              id="description"
-              name="description"
-              value={form.description}
-              onChange={handleChange}
-              placeholder="Describe what happened"
-              rows="4"
-              required
-            />
+            <form onSubmit={handleSubmit} className="incident-form">
+              <label htmlFor="title">Incident Title</label>
 
-            <div className="form-row">
-              <div>
-                <label htmlFor="category">Category</label>
-                <select
-                  id="category"
-                  name="category"
-                  value={form.category}
-                  onChange={handleChange}
-                  required
-                >
-                  <option>Phishing</option>
-                  <option>Malware</option>
-                  <option>Unauthorized Access</option>
-                  <option>Suspicious Activity</option>
-                  <option>Other</option>
-                </select>
+              <input
+                id="title"
+                name="title"
+                value={form.title}
+                onChange={handleChange}
+                placeholder="Enter incident title"
+                required
+              />
+
+              <label htmlFor="description">Description</label>
+
+              <textarea
+                id="description"
+                name="description"
+                value={form.description}
+                onChange={handleChange}
+                placeholder="Describe what happened"
+                rows="4"
+                required
+              />
+
+              <div className="form-row">
+                <div>
+                  <label htmlFor="category">Category</label>
+
+                  <select
+                    id="category"
+                    name="category"
+                    value={form.category}
+                    onChange={handleChange}
+                    required
+                  >
+                    <option>Phishing</option>
+                    <option>Malware</option>
+                    <option>Unauthorized Access</option>
+                    <option>Suspicious Activity</option>
+                    <option>Other</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label htmlFor="severity">Severity</label>
+
+                  <select
+                    id="severity"
+                    name="severity"
+                    value={form.severity}
+                    onChange={handleChange}
+                    required
+                  >
+                    <option>Low</option>
+                    <option>Medium</option>
+                    <option>High</option>
+                    <option>Critical</option>
+                  </select>
+                </div>
               </div>
 
-              <div>
-                <label htmlFor="severity">Severity</label>
-                <select
-                  id="severity"
-                  name="severity"
-                  value={form.severity}
-                  onChange={handleChange}
-                  required
-                >
-                  <option>Low</option>
-                  <option>Medium</option>
-                  <option>High</option>
-                  <option>Critical</option>
-                </select>
+              <div className="form-actions">
+                <button type="submit" disabled={saving}>
+                  {saving
+                    ? "Saving..."
+                    : editingId
+                    ? "Update Incident"
+                    : "Report Incident"}
+                </button>
+
+                {editingId && (
+                  <button
+                    type="button"
+                    className="cancel-button"
+                    onClick={() => {
+                      setEditingId(null);
+                      setForm(initialForm);
+                      setError("");
+                      setMessage("");
+                    }}
+                  >
+                    Cancel Edit
+                  </button>
+                )}
               </div>
-            </div>
+            </form>
+          </section>
+        )}
 
-            {error && <p className="error">{error}</p>}
-            {message && <p className="success-message">{message}</p>}
+        {isAdmin && activeSection === "employees" && (
+          <>
+            <section className="incident-section">
+              <h2>Employee Registration Requests</h2>
 
-            <div className="form-actions">
-              <button type="submit" disabled={saving}>
-                {saving
-                  ? "Saving..."
-                  : editingId
-                  ? "Update Incident"
-                  : "Report Incident"}
+              <p>
+                Review employee registrations before allowing them to log in.
+              </p>
+
+              {requestError && (
+                <p className="error">{requestError}</p>
+              )}
+
+              {requestMessage && (
+                <p className="success-message">{requestMessage}</p>
+              )}
+
+              <button
+                type="button"
+                onClick={loadEmployeeRequests}
+                disabled={requestsLoading}
+              >
+                {requestsLoading ? "Loading..." : "Refresh Requests"}
               </button>
 
-              {editingId && (
-                <button
-                  type="button"
-                  className="cancel-button"
-                  onClick={() => {
-                    setEditingId(null);
-                    setForm(initialForm);
-                    setError("");
-                    setMessage("");
-                  }}
-                >
-                  Cancel Edit
-                </button>
+              {requestsLoading && (
+                <p>Loading registration requests...</p>
               )}
-            </div>
-          </form>
-        </section>
 
-        <section className="incident-section">
-          <h2>Reported Incidents</h2>
+              {!requestsLoading &&
+                !requestError &&
+                employeeRequests.length === 0 && (
+                  <p className="empty-message">
+                    No pending employee registration requests.
+                  </p>
+                )}
 
-          {error && <p className="error">{error}</p>}
-          {message && <p className="success-message">{message}</p>}
+              {!requestsLoading && employeeRequests.length > 0 && (
+                <div className="table-wrapper">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Employee ID</th>
+                        <th>Requested Date</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
 
-          {loading && <p>Loading incidents...</p>}
+                    <tbody>
+                      {employeeRequests.map((employee) => (
+                        <tr key={employee._id}>
+                          <td>{employee.name}</td>
+                          <td>{employee.email}</td>
+                          <td>{employee.employeeId || "-"}</td>
+                          <td>
+                            {employee.createdAt
+                              ? new Date(
+                                  employee.createdAt
+                                ).toLocaleDateString()
+                              : "-"}
+                          </td>
+                          <td>
+                            <div className="table-actions">
+                              <button
+                                type="button"
+                                disabled={reviewingId === employee._id}
+                                onClick={() =>
+                                  reviewEmployeeRequest(
+                                    employee._id,
+                                    "approved"
+                                  )
+                                }
+                              >
+                                {reviewingId === employee._id
+                                  ? "Please wait..."
+                                  : "Approve"}
+                              </button>
 
-          {!loading && incidents.length === 0 && (
-            <p className="empty-message">
-              No incidents have been reported yet.
-            </p>
-          )}
+                              <button
+                                type="button"
+                                className="delete-button"
+                                disabled={reviewingId === employee._id}
+                                onClick={() =>
+                                  reviewEmployeeRequest(
+                                    employee._id,
+                                    "rejected"
+                                  )
+                                }
+                              >
+                                Reject
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
 
-          {!loading && incidents.length > 0 && (
-            <div className="table-wrapper">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Title</th>
-                    <th>Category</th>
-                    <th>Severity</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
+            <section className="incident-section">
+              <h2>Employee Management</h2>
 
-                <tbody>
-                  {incidents.map((incident) => (
-                    <tr key={incident._id}>
-                      <td>{incident.title}</td>
-                      <td>{incident.category}</td>
-                      <td>{incident.severity}</td>
+              <p>Employees in your organization</p>
 
-                      <td>
-                        {isAdmin ? (
-                          <select
-                            aria-label={`Status for ${incident.title}`}
-                            value={incident.status}
-                            onChange={(event) =>
-                              handleStatusChange(
-                                incident,
-                                event.target.value
-                              )
-                            }
-                          >
-                            <option value="Open">Open</option>
-                            <option value="In Progress">In Progress</option>
-                            <option value="Resolved">Resolved</option>
-                            <option value="Closed">Closed</option>
-                          </select>
-                        ) : (
-                          incident.status
-                        )}
-                      </td>
+              {employeeLoading && <p>Loading employees...</p>}
 
-                      <td>
-                        <div className="table-actions">
-                          <button
-                            type="button"
-                            className="edit-button"
-                            onClick={() => handleEdit(incident)}
-                          >
-                            Edit
-                          </button>
+              {!employeeLoading && employees.length === 0 && (
+                <p className="empty-message">
+                  No employees have joined your organization yet.
+                </p>
+              )}
 
-                          <button
-                            type="button"
-                            className="delete-button"
-                            onClick={() => handleDelete(incident._id)}
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </td>
+              {!employeeLoading && employees.length > 0 && (
+                <div className="table-wrapper">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Joined Date</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+
+                    <tbody>
+                      {employees.map((employee) => (
+                        <tr key={employee._id}>
+                          <td>{employee.name}</td>
+                          <td>{employee.email}</td>
+                          <td>
+                            {employee.createdAt
+                              ? new Date(
+                                  employee.createdAt
+                                ).toLocaleDateString()
+                              : "-"}
+                          </td>
+                          <td>
+                            <div className="table-actions">
+                              <button
+                                type="button"
+                                className="edit-button"
+                                onClick={() => editEmployee(employee)}
+                              >
+                                Edit
+                              </button>
+
+                              <button
+                                type="button"
+                                className="delete-button"
+                                onClick={() => removeEmployee(employee)}
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+          </>
+        )}
+
+        {(!isAdmin || activeSection === "incidents") && (
+          <section className="incident-section">
+            <h2>
+              {isAdmin
+                ? "Organization Incidents"
+                : "My Reported Incidents"}
+            </h2>
+
+            {loading && <p>Loading incidents...</p>}
+
+            {!loading && incidents.length === 0 && (
+              <p className="empty-message">
+                {isAdmin
+                  ? "No incidents have been reported in your organization yet."
+                  : "You have not reported any incidents yet."}
+              </p>
+            )}
+
+            {!loading && incidents.length > 0 && (
+              <div className="table-wrapper">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Title</th>
+                      <th>Category</th>
+                      <th>Severity</th>
+                      <th>Status</th>
+                      <th>Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
+                  </thead>
+
+                  <tbody>
+                    {incidents.map((incident) => (
+                      <tr key={incident._id}>
+                        <td>{incident.title}</td>
+                        <td>{incident.category}</td>
+                        <td>{incident.severity}</td>
+
+                        <td>
+                          {isAdmin ? (
+                            <select
+                              aria-label={`Status for ${incident.title}`}
+                              value={incident.status}
+                              onChange={(event) =>
+                                handleStatusChange(
+                                  incident,
+                                  event.target.value
+                                )
+                              }
+                            >
+                              <option value="Open">Open</option>
+                              <option value="In Progress">
+                                In Progress
+                              </option>
+                              <option value="Resolved">Resolved</option>
+                            </select>
+                          ) : (
+                            incident.status
+                          )}
+                        </td>
+
+                        <td>
+                          <div className="table-actions">
+                            {!isAdmin && (
+                              <button
+                                type="button"
+                                className="edit-button"
+                                onClick={() => handleEdit(incident)}
+                              >
+                                Edit
+                              </button>
+                            )}
+
+                            <button
+                              type="button"
+                              className="delete-button"
+                              onClick={() => handleDelete(incident._id)}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        )}
       </main>
     </div>
   );

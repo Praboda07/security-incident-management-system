@@ -1,7 +1,8 @@
 
 const jwt = require("jsonwebtoken");
+const User = require("../models/User");
 
-function authMiddleware(req, res, next) {
+async function authMiddleware(req, res, next) {
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -10,20 +11,64 @@ function authMiddleware(req, res, next) {
     });
   }
 
-  const token = authHeader.split(" ")[1];
+  if (!process.env.JWT_SECRET) {
+    return res.status(500).json({
+      message: "Server configuration error.",
+    });
+  }
 
   try {
+    const token = authHeader.split(" ")[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
+    const user = await User.findById(decoded.userId).select(
+      "role organizationId approvalStatus"
+    );
+
+    if (!user) {
+      return res.status(401).json({
+        message: "Account not found. Please log in again.",
+      });
+    }
+
+    // Admin account ekata me approval check eka adala naha.
+    // Employee kenek approved nathnam access denna epa.
+    if (
+      user.role === "user" &&
+      user.approvalStatus !== "approved"
+    ) {
+      return res.status(403).json({
+        message:
+          user.approvalStatus === "rejected"
+            ? "Your registration request was rejected. Contact your admin."
+            : "Your registration request is pending admin approval.",
+        approvalStatus: user.approvalStatus || "pending",
+      });
+    }
+
     req.user = {
-      userId: decoded.userId,
-      role: decoded.role,
+      userId: user._id.toString(),
+      role: user.role,
+      organizationId: user.organizationId
+        ? user.organizationId.toString()
+        : null,
     };
 
     next();
   } catch (error) {
-    return res.status(401).json({
-      message: "Invalid or expired token. Please log in again.",
+    if (
+      error.name === "JsonWebTokenError" ||
+      error.name === "TokenExpiredError"
+    ) {
+      return res.status(401).json({
+        message: "Invalid or expired token. Please log in again.",
+      });
+    }
+
+    console.error("Authentication error:", error);
+
+    return res.status(500).json({
+      message: "Authentication failed.",
     });
   }
 }

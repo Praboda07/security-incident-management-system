@@ -387,3 +387,23 @@ th {
     align-items: flex-start;
   }
 }
+.dashboard-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 24px 0;
+}
+
+.dashboard-nav button {
+  padding: 12px 20px;
+  border: 1px solid #d8e4dc;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #183b2b;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.dashboard-nav button:hover {
+  background: #e8f1eb;
+}

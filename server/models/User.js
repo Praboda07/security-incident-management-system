@@ -27,9 +27,37 @@ const userSchema = new mongoose.Schema(
       enum: ["user", "admin"],
       default: "user",
     },
+
+    organizationId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Organization",
+      required: true,
+    },
+
+    employeeId: {
+      type: String,
+      trim: true,
+      uppercase: true,
+      default: null,
+    },
+
+    approvalStatus: {
+      type: String,
+      enum: ["pending", "approved", "rejected"],
+      default: "approved",
+    },
   },
+  { timestamps: true }
+);
+
+// Employee IDs must be unique within each organization.
+userSchema.index(
+  { organizationId: 1, employeeId: 1 },
   {
-    timestamps: true,
+    unique: true,
+    partialFilterExpression: {
+      employeeId: { $type: "string" },
+    },
   }
 );
 

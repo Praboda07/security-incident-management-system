@@ -1,4 +1,3 @@
-
 const mongoose = require("mongoose");
 
 const incidentSchema = new mongoose.Schema(
@@ -37,6 +36,11 @@ const incidentSchema = new mongoose.Schema(
     reportedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
+      required: true,
+    },
+    organizationId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Organization",
       required: true,
     },
   },
