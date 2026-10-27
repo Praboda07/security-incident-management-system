@@ -1,10 +1,9 @@
-
 import React, { useEffect, useState } from "react";
 import "./App.css";
 
 import Login from "./components/Login";
 import Register from "./components/Register";
-
+import { Sun, Moon } from "lucide-react";
 import {
   getIncidents,
   createIncident,
@@ -24,6 +23,19 @@ const initialForm = {
 };
 
 function App() {
+  const [theme, setTheme] = useState(() => {
+  return sessionStorage.getItem("simsTheme") || "light";
+});
+
+function toggleTheme() {
+  setTheme((currentTheme) => {
+    const nextTheme =
+      currentTheme === "light" ? "dark" : "light";
+
+    sessionStorage.setItem("simsTheme", nextTheme);
+    return nextTheme;
+  });
+}
   const [auth, setAuth] = useState(() => {
     const saved = sessionStorage.getItem("simsAuth");
 
@@ -40,20 +52,11 @@ function App() {
   const [page, setPage] = useState("login");
   const [activeSection, setActiveSection] = useState("incidents");
 
-  // Theme settings
-  const [theme, setTheme] = useState(() => {
-    return sessionStorage.getItem("simsTheme") || "light";
-  });
-
   const [incidents, setIncidents] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [employeeRequests, setEmployeeRequests] = useState([]);
   const [rejectedEmployees, setRejectedEmployees] = useState([]);
   const [archivedEmployees, setArchivedEmployees] = useState([]);
-
-  const [archiveLoading, setArchiveLoading] = useState(false);
-  const [rejectedLoading, setRejectedLoading] = useState(false);
-  const [restoringId, setRestoringId] = useState(null);
 
   const [form, setForm] = useState(initialForm);
   const [editingId, setEditingId] = useState(null);
@@ -61,7 +64,12 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [employeeLoading, setEmployeeLoading] = useState(false);
   const [requestsLoading, setRequestsLoading] = useState(false);
+  const [rejectedLoading, setRejectedLoading] = useState(false);
+  const [archiveLoading, setArchiveLoading] = useState(false);
+
   const [reviewingId, setReviewingId] = useState(null);
+  const [restoringId, setRestoringId] = useState(null);
+  const [reAddingId, setReAddingId] = useState(null);
   const [saving, setSaving] = useState(false);
 
   const [error, setError] = useState("");
@@ -72,16 +80,27 @@ function App() {
   const isAuthenticated = Boolean(auth?.token);
   const isAdmin = auth?.user?.role === "admin";
 
-  // Toggle light and dark mode
-  function toggleTheme() {
-    setTheme((currentTheme) => {
-      const nextTheme =
-        currentTheme === "light" ? "dark" : "light";
+  async function apiRequest(path, options = {}) {
+    if (!auth?.token) {
+      throw new Error("Your session has expired. Please log in again.");
+    }
 
-      sessionStorage.setItem("simsTheme", nextTheme);
-
-      return nextTheme;
+    const response = await fetch(`${API_URL}${path}`, {
+      ...options,
+      headers: {
+        ...(options.body ? { "Content-Type": "application/json" } : {}),
+        Authorization: `Bearer ${auth.token}`,
+        ...options.headers,
+      },
     });
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(data.message || "Request failed.");
+    }
+
+    return data;
   }
 
   async function loadIncidents() {
@@ -89,7 +108,7 @@ function App() {
 
     try {
       const data = await getIncidents();
-      setIncidents(Array.isArray(data) ? data : []);
+      setIncidents(data);
     } catch (err) {
       setError(err.message || "Failed to load incidents.");
     } finally {
@@ -99,7 +118,6 @@ function App() {
 
   async function loadEmployees() {
     setEmployeeLoading(true);
-    setError("");
 
     try {
       const data = await getEmployees();
@@ -111,34 +129,33 @@ function App() {
     }
   }
 
+  async function loadEmployeeRequests() {
+    if (!auth?.token || !isAdmin) return;
+
+    setRequestsLoading(true);
+    setRequestError("");
+
+    try {
+      const data = await apiRequest("/employee-requests");
+      setEmployeeRequests(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setRequestError(err.message || "Failed to load registration requests.");
+    } finally {
+      setRequestsLoading(false);
+    }
+  }
+
   async function loadRejectedEmployees() {
     if (!auth?.token || !isAdmin) return;
 
     setRejectedLoading(true);
+    setRequestError("");
 
     try {
-      const response = await fetch(
-        `${API_URL}/rejected-employees`,
-        {
-          headers: {
-            Authorization: `Bearer ${auth.token}`,
-          },
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(
-          data.message || "Failed to load rejected employees."
-        );
-      }
-
+      const data = await apiRequest("/rejected-employees");
       setRejectedEmployees(Array.isArray(data) ? data : []);
     } catch (err) {
-      setError(
-        err.message || "Failed to load rejected employees."
-      );
+      setRequestError(err.message || "Failed to load rejected employees.");
     } finally {
       setRejectedLoading(false);
     }
@@ -148,67 +165,15 @@ function App() {
     if (!auth?.token || !isAdmin) return;
 
     setArchiveLoading(true);
-
-    try {
-      const response = await fetch(
-        `${API_URL}/archived-employees`,
-        {
-          headers: {
-            Authorization: `Bearer ${auth.token}`,
-          },
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(
-          data.message || "Failed to load archived employees."
-        );
-      }
-
-      setArchivedEmployees(Array.isArray(data) ? data : []);
-    } catch (err) {
-      setError(
-        err.message || "Failed to load archived employees."
-      );
-    } finally {
-      setArchiveLoading(false);
-    }
-  }
-
-  async function loadEmployeeRequests() {
-    if (!auth?.token || !isAdmin) return;
-
-    setRequestsLoading(true);
     setRequestError("");
 
     try {
-      const response = await fetch(
-        `${API_URL}/employee-requests`,
-        {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${auth.token}`,
-          },
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(
-          data.message || "Failed to load registration requests."
-        );
-      }
-
-      setEmployeeRequests(Array.isArray(data) ? data : []);
+      const data = await apiRequest("/archived-employees");
+      setArchivedEmployees(Array.isArray(data) ? data : []);
     } catch (err) {
-      setRequestError(
-        err.message || "Failed to load registration requests."
-      );
+      setRequestError(err.message || "Failed to load archived employees.");
     } finally {
-      setRequestsLoading(false);
+      setArchiveLoading(false);
     }
   }
 
@@ -218,7 +183,6 @@ function App() {
     } else {
       setLoading(false);
     }
-    // Load incidents when authentication changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated]);
 
@@ -319,16 +283,12 @@ function App() {
     setMessage("");
 
     try {
-      await updateIncident(incident._id, {
-        status: newStatus,
-      });
+      await updateIncident(incident._id, { status: newStatus });
 
       setMessage("Incident status updated successfully.");
       await loadIncidents();
     } catch (err) {
-      setError(
-        err.message || "Failed to update incident status."
-      );
+      setError(err.message || "Failed to update incident status.");
     }
   }
 
@@ -381,25 +341,10 @@ function App() {
     setRequestMessage("");
 
     try {
-      const response = await fetch(
-        `${API_URL}/employee-requests/${id}`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${auth.token}`,
-          },
-          body: JSON.stringify({ status }),
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(
-          data.message || "Failed to update registration request."
-        );
-      }
+      const data = await apiRequest(`/employee-requests/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      });
 
       setRequestMessage(
         status === "approved"
@@ -422,16 +367,10 @@ function App() {
   }
 
   async function editEmployee(employee) {
-    const name = window.prompt(
-      "Enter employee name:",
-      employee.name
-    );
+    const name = window.prompt("Enter employee name:", employee.name);
     if (name === null) return;
 
-    const email = window.prompt(
-      "Enter employee email:",
-      employee.email
-    );
+    const email = window.prompt("Enter employee email:", employee.email);
     if (email === null) return;
 
     const employeeId = window.prompt(
@@ -440,30 +379,14 @@ function App() {
     );
     if (employeeId === null) return;
 
+    setError("");
+    setMessage("");
+
     try {
-      const response = await fetch(
-        `${API_URL}/employees/${employee._id}`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${auth.token}`,
-          },
-          body: JSON.stringify({
-            name,
-            email,
-            employeeId,
-          }),
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(
-          data.message || "Failed to edit employee."
-        );
-      }
+      await apiRequest(`/employees/${employee._id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ name, email, employeeId }),
+      });
 
       setMessage("Employee updated successfully.");
       await loadEmployees();
@@ -483,75 +406,80 @@ function App() {
     setMessage("");
 
     try {
-      const response = await fetch(
-        `${API_URL}/employees/${employee._id}`,
-        {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${auth.token}`,
-          },
-        }
-      );
+      await apiRequest(`/employees/${employee._id}`, {
+        method: "DELETE",
+      });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(
-          data.message || "Failed to remove employee."
-        );
-      }
-
-      setMessage(
-        "Employee archived successfully. You can restore this employee from Archived Employees."
-      );
+      setMessage("Employee archived successfully.");
 
       await Promise.all([
         loadEmployees(),
         loadArchivedEmployees(),
       ]);
     } catch (err) {
-      setError(err.message || "Failed to remove employee.");
+      setError(err.message || "Failed to archive employee.");
     }
   }
 
+  // Re-add a rejected employee to the pending approval list.
+  async function reAddRejectedEmployee(employee) {
+    const confirmed = window.confirm(
+      `Re-add ${employee.name} and send the registration request for approval?`
+    );
+
+    if (!confirmed) return;
+
+    setReAddingId(employee._id);
+    setRequestError("");
+    setRequestMessage("");
+
+    try {
+      const data = await apiRequest(
+        `/rejected-employees/${employee._id}/re-add`,
+        { method: "PATCH" }
+      );
+
+      setRequestMessage(data.message || "Employee re-added for approval.");
+
+      await Promise.all([
+        loadRejectedEmployees(),
+        loadEmployeeRequests(),
+      ]);
+    } catch (err) {
+      setRequestError(err.message || "Failed to re-add employee.");
+    } finally {
+      setReAddingId(null);
+    }
+  }
+
+  // Restore an archived employee account.
   async function restoreEmployee(employee) {
     const confirmed = window.confirm(
-      `Restore ${employee.name}'s account?`
+      `Restore ${employee.name}'s archived account?`
     );
 
     if (!confirmed) return;
 
     setRestoringId(employee._id);
-    setError("");
-    setMessage("");
+    setRequestError("");
+    setRequestMessage("");
 
     try {
-      const response = await fetch(
-        `${API_URL}/archived-employees/${employee._id}/restore`,
-        {
-          method: "PATCH",
-          headers: {
-            Authorization: `Bearer ${auth.token}`,
-          },
-        }
+      const data = await apiRequest(
+        `/archived-employees/${employee._id}/restore`,
+        { method: "PATCH" }
       );
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(
-          data.message || "Failed to restore employee."
-        );
-      }
-
-      setMessage("Employee restored successfully.");
+      setRequestMessage(data.message || "Employee restored successfully.");
 
       await Promise.all([
-        loadEmployees(),
         loadArchivedEmployees(),
+        loadEmployees(),
+        loadEmployeeRequests(),
+        loadRejectedEmployees(),
       ]);
     } catch (err) {
-      setError(err.message || "Failed to restore employee.");
+      setRequestError(err.message || "Failed to restore employee.");
     } finally {
       setRestoringId(null);
     }
@@ -597,8 +525,8 @@ function App() {
     <div className="app" data-theme={theme}>
       <header className="header">
         <div>
-          <h1>SIMS</h1>
-          <p>Security Incident Management System</p>
+          <h1>SecureTrack 🛡️</h1>
+          <p>Protect your organization with confidence.</p>
         </div>
 
         <div className="header-user">
@@ -607,16 +535,23 @@ function App() {
             {isAdmin ? " (Admin)" : " (Employee)"}
           </span>
 
+         
           <button
-            type="button"
-            className="theme-toggle"
-            onClick={toggleTheme}
-            aria-label="Toggle dashboard theme"
-          >
-            {theme === "light" ? "🌙 Dark Mode" : "☀️ Light Mode"}
-          </button>
-
-          <button
+  type="button"
+  className="theme-toggle icon-only"
+  onClick={toggleTheme}
+  aria-label={
+    theme === "light" ? "Switch to dark mode" : "Switch to light mode"
+  }
+  title={theme === "light" ? "Dark Mode" : "Light Mode"}
+>
+  {theme === "light" ? (
+    <Moon size={21} strokeWidth={1.8} />
+  ) : (
+    <Sun size={21} strokeWidth={1.8} />
+  )}
+</button>
+ <button
             type="button"
             className="logout-button"
             onClick={handleLogout}
@@ -628,9 +563,7 @@ function App() {
 
       <main className="dashboard">
         <section className="welcome">
-          <h2>
-            {isAdmin ? "Admin Dashboard" : "Employee Dashboard"}
-          </h2>
+          <h2>{isAdmin ? "Admin Dashboard" : "Employee Dashboard"}</h2>
 
           <p>
             {isAdmin
@@ -643,9 +576,7 @@ function App() {
           <nav className="dashboard-nav">
             <button
               type="button"
-              className={
-                activeSection === "incidents" ? "active" : ""
-              }
+              className={activeSection === "incidents" ? "active" : ""}
               onClick={() => {
                 setActiveSection("incidents");
                 setError("");
@@ -657,9 +588,7 @@ function App() {
 
             <button
               type="button"
-              className={
-                activeSection === "employees" ? "active" : ""
-              }
+              className={activeSection === "employees" ? "active" : ""}
               onClick={openEmployeeManagement}
             >
               Employee Management
@@ -699,21 +628,14 @@ function App() {
         </section>
 
         {error && <p className="error">{error}</p>}
-        {message && (
-          <p className="success-message">{message}</p>
-        )}
+        {message && <p className="success-message">{message}</p>}
 
         {!isAdmin && (
           <section className="incident-section form-section">
-            <h2>
-              {editingId
-                ? "Edit Incident"
-                : "Report a Security Incident"}
-            </h2>
+            <h2>{editingId ? "Edit Incident" : "Report a Security Incident"}</h2>
 
             <form onSubmit={handleSubmit} className="incident-form">
               <label htmlFor="title">Incident Title</label>
-
               <input
                 id="title"
                 name="title"
@@ -724,7 +646,6 @@ function App() {
               />
 
               <label htmlFor="description">Description</label>
-
               <textarea
                 id="description"
                 name="description"
@@ -738,7 +659,6 @@ function App() {
               <div className="form-row">
                 <div>
                   <label htmlFor="category">Category</label>
-
                   <select
                     id="category"
                     name="category"
@@ -756,7 +676,6 @@ function App() {
 
                 <div>
                   <label htmlFor="severity">Severity</label>
-
                   <select
                     id="severity"
                     name="severity"
@@ -802,21 +721,14 @@ function App() {
 
         {isAdmin && activeSection === "employees" && (
           <>
+            {/* Pending registration requests */}
             <section className="incident-section">
               <h2>Employee Registration Requests</h2>
+              <p>Review employee registrations before allowing them to log in.</p>
 
-              <p>
-                Review employee registrations before allowing them to log in.
-              </p>
-
-              {requestError && (
-                <p className="error">{requestError}</p>
-              )}
-
+              {requestError && <p className="error">{requestError}</p>}
               {requestMessage && (
-                <p className="success-message">
-                  {requestMessage}
-                </p>
+                <p className="success-message">{requestMessage}</p>
               )}
 
               <button
@@ -827,17 +739,13 @@ function App() {
                 {requestsLoading ? "Loading..." : "Refresh Requests"}
               </button>
 
-              {requestsLoading && (
-                <p>Loading registration requests...</p>
-              )}
+              {requestsLoading && <p>Loading registration requests...</p>}
 
-              {!requestsLoading &&
-                !requestError &&
-                employeeRequests.length === 0 && (
-                  <p className="empty-message">
-                    No pending employee registration requests.
-                  </p>
-                )}
+              {!requestsLoading && employeeRequests.length === 0 && (
+                <p className="empty-message">
+                  No pending employee registration requests.
+                </p>
+              )}
 
               {!requestsLoading && employeeRequests.length > 0 && (
                 <div className="table-wrapper">
@@ -860,9 +768,7 @@ function App() {
                           <td>{employee.employeeId || "-"}</td>
                           <td>
                             {employee.createdAt
-                              ? new Date(
-                                  employee.createdAt
-                                ).toLocaleDateString()
+                              ? new Date(employee.createdAt).toLocaleDateString()
                               : "-"}
                           </td>
                           <td>
@@ -871,10 +777,7 @@ function App() {
                                 type="button"
                                 disabled={reviewingId === employee._id}
                                 onClick={() =>
-                                  reviewEmployeeRequest(
-                                    employee._id,
-                                    "approved"
-                                  )
+                                  reviewEmployeeRequest(employee._id, "approved")
                                 }
                               >
                                 {reviewingId === employee._id
@@ -887,10 +790,7 @@ function App() {
                                 className="delete-button"
                                 disabled={reviewingId === employee._id}
                                 onClick={() =>
-                                  reviewEmployeeRequest(
-                                    employee._id,
-                                    "rejected"
-                                  )
+                                  reviewEmployeeRequest(employee._id, "rejected")
                                 }
                               >
                                 Reject
@@ -905,9 +805,14 @@ function App() {
               )}
             </section>
 
+            {/* Approved employees */}
             <section className="incident-section">
               <h2>Employee Management</h2>
               <p>Employees in your organization.</p>
+
+              <button type="button" onClick={loadEmployees}>
+                Refresh Employees
+              </button>
 
               {employeeLoading && <p>Loading employees...</p>}
 
@@ -924,6 +829,7 @@ function App() {
                       <tr>
                         <th>Name</th>
                         <th>Email</th>
+                        <th>Employee ID</th>
                         <th>Joined Date</th>
                         <th>Actions</th>
                       </tr>
@@ -934,11 +840,10 @@ function App() {
                         <tr key={employee._id}>
                           <td>{employee.name}</td>
                           <td>{employee.email}</td>
+                          <td>{employee.employeeId || "-"}</td>
                           <td>
                             {employee.createdAt
-                              ? new Date(
-                                  employee.createdAt
-                                ).toLocaleDateString()
+                              ? new Date(employee.createdAt).toLocaleDateString()
                               : "-"}
                           </td>
                           <td>
@@ -968,10 +873,12 @@ function App() {
               )}
             </section>
 
+            {/* Rejected employees */}
             <section className="incident-section">
               <h2>Rejected Employees</h2>
               <p>
-                Employee registration requests rejected by an admin.
+                Registration requests rejected by an admin. Re-add an employee
+                to send the request for approval again.
               </p>
 
               <button
@@ -979,19 +886,13 @@ function App() {
                 onClick={loadRejectedEmployees}
                 disabled={rejectedLoading}
               >
-                {rejectedLoading
-                  ? "Loading..."
-                  : "Refresh Rejected Employees"}
+                {rejectedLoading ? "Loading..." : "Refresh Rejected Employees"}
               </button>
 
-              {rejectedLoading && (
-                <p>Loading rejected employees...</p>
-              )}
+              {rejectedLoading && <p>Loading rejected employees...</p>}
 
               {!rejectedLoading && rejectedEmployees.length === 0 && (
-                <p className="empty-message">
-                  No rejected employees found.
-                </p>
+                <p className="empty-message">No rejected employees found.</p>
               )}
 
               {!rejectedLoading && rejectedEmployees.length > 0 && (
@@ -1003,6 +904,7 @@ function App() {
                         <th>Email</th>
                         <th>Employee ID</th>
                         <th>Rejected / Requested Date</th>
+                        <th>Action</th>
                       </tr>
                     </thead>
 
@@ -1013,11 +915,22 @@ function App() {
                           <td>{employee.email}</td>
                           <td>{employee.employeeId || "-"}</td>
                           <td>
-                            {employee.createdAt
-                              ? new Date(
-                                  employee.createdAt
-                                ).toLocaleDateString()
+                            {employee.updatedAt
+                              ? new Date(employee.updatedAt).toLocaleDateString()
+                              : employee.createdAt
+                              ? new Date(employee.createdAt).toLocaleDateString()
                               : "-"}
+                          </td>
+                          <td>
+                            <button
+                              type="button"
+                              disabled={reAddingId === employee._id}
+                              onClick={() => reAddRejectedEmployee(employee)}
+                            >
+                              {reAddingId === employee._id
+                                ? "Please wait..."
+                                : "Re-add Employee"}
+                            </button>
                           </td>
                         </tr>
                       ))}
@@ -1027,6 +940,7 @@ function App() {
               )}
             </section>
 
+            {/* Archived employees */}
             <section className="incident-section">
               <h2>Archived Employees</h2>
               <p>
@@ -1039,19 +953,13 @@ function App() {
                 onClick={loadArchivedEmployees}
                 disabled={archiveLoading}
               >
-                {archiveLoading
-                  ? "Loading..."
-                  : "Refresh Archived Employees"}
+                {archiveLoading ? "Loading..." : "Refresh Archived Employees"}
               </button>
 
-              {archiveLoading && (
-                <p>Loading archived employees...</p>
-              )}
+              {archiveLoading && <p>Loading archived employees...</p>}
 
               {!archiveLoading && archivedEmployees.length === 0 && (
-                <p className="empty-message">
-                  No archived employees found.
-                </p>
+                <p className="empty-message">No archived employees found.</p>
               )}
 
               {!archiveLoading && archivedEmployees.length > 0 && (
@@ -1062,9 +970,8 @@ function App() {
                         <th>Name</th>
                         <th>Email</th>
                         <th>Employee ID</th>
-                        <th>Removed Date</th>
-                        <th>Removed By</th>
-                        <th>Actions</th>
+                        <th>Archived Date</th>
+                        <th>Action</th>
                       </tr>
                     </thead>
 
@@ -1076,20 +983,12 @@ function App() {
                           <td>{employee.employeeId || "-"}</td>
                           <td>
                             {employee.deletedAt
-                              ? new Date(
-                                  employee.deletedAt
-                                ).toLocaleString()
+                              ? new Date(employee.deletedAt).toLocaleDateString()
                               : "-"}
-                          </td>
-                          <td>
-                            {employee.deletedBy?.name ||
-                              employee.deletedBy?.email ||
-                              "-"}
                           </td>
                           <td>
                             <button
                               type="button"
-                              className="edit-button"
                               disabled={restoringId === employee._id}
                               onClick={() => restoreEmployee(employee)}
                             >
@@ -1108,12 +1007,11 @@ function App() {
           </>
         )}
 
+        {/* Incidents */}
         {(!isAdmin || activeSection === "incidents") && (
           <section className="incident-section">
             <h2>
-              {isAdmin
-                ? "Organization Incidents"
-                : "My Reported Incidents"}
+              {isAdmin ? "Organization Incidents" : "My Reported Incidents"}
             </h2>
 
             {loading && <p>Loading incidents...</p>}
@@ -1152,16 +1050,11 @@ function App() {
                               aria-label={`Status for ${incident.title}`}
                               value={incident.status}
                               onChange={(event) =>
-                                handleStatusChange(
-                                  incident,
-                                  event.target.value
-                                )
+                                handleStatusChange(incident, event.target.value)
                               }
                             >
                               <option value="Open">Open</option>
-                              <option value="In Progress">
-                                In Progress
-                              </option>
+                              <option value="In Progress">In Progress</option>
                               <option value="Resolved">Resolved</option>
                             </select>
                           ) : (

@@ -9,15 +9,28 @@ const authMiddleware = require("../middleware/authMiddleware");
 
 const router = express.Router();
 
-function adminOnly(req, res) {
-  if (req.user?.role !== "admin") {
-    res.status(403).json({ message: "Admin access required." });
-    return false;
+// Helper: admin authorization
+function requireAdmin(req, res, next) {
+  if (req.user.role !== "admin") {
+    return res.status(403).json({
+      message: "Only organization admins can perform this action.",
+    });
   }
-  return true;
+
+  if (!req.user.organizationId) {
+    return res.status(403).json({
+      message: "Your account is not linked to an organization.",
+    });
+  }
+
+  next();
 }
 
-// Register an organization and its admin.
+// =====================================================
+// 1. REGISTER ORGANIZATION AND ADMIN
+// POST /api/auth/register-organization
+// =====================================================
+
 router.post("/register-organization", async (req, res) => {
   let organization;
 
@@ -50,15 +63,24 @@ router.post("/register-organization", async (req, res) => {
 
     const normalizedOrganizationEmail =
       organizationEmail.trim().toLowerCase();
+
     const normalizedEmail = email.trim().toLowerCase();
 
-    if (await Organization.findOne({ email: normalizedOrganizationEmail })) {
+    const existingOrganization = await Organization.findOne({
+      email: normalizedOrganizationEmail,
+    });
+
+    if (existingOrganization) {
       return res.status(409).json({
         message: "An organization with this email already exists.",
       });
     }
 
-    if (await User.findOne({ email: normalizedEmail })) {
+    const existingUser = await User.findOne({
+      email: normalizedEmail,
+    });
+
+    if (existingUser) {
       return res.status(409).json({
         message: "An account with this email already exists.",
       });
@@ -78,6 +100,7 @@ router.post("/register-organization", async (req, res) => {
       role: "admin",
       organizationId: organization._id,
       approvalStatus: "approved",
+      isDeleted: false,
     });
 
     return res.status(201).json({
@@ -106,16 +129,32 @@ router.post("/register-organization", async (req, res) => {
       }
     }
 
+    if (error.code === 11000) {
+      return res.status(409).json({
+        message: "This email is already registered.",
+      });
+    }
+
     return res.status(500).json({
       message: "Organization registration failed.",
     });
   }
 });
 
-// Employee registration.
+// =====================================================
+// 2. EMPLOYEE REGISTER / RE-REGISTER
+// POST /api/auth/register
+// =====================================================
+
 router.post("/register", async (req, res) => {
   try {
-    const { name, email, password, organizationId, employeeId } = req.body;
+    const {
+      name,
+      email,
+      password,
+      organizationId,
+      employeeId,
+    } = req.body;
 
     if (
       !name?.trim() ||
@@ -125,7 +164,8 @@ router.post("/register", async (req, res) => {
       !employeeId?.trim()
     ) {
       return res.status(400).json({
-        message: "Please provide all required employee details.",
+        message:
+          "Please provide your name, email, password, employee ID, and organization ID.",
       });
     }
 
@@ -136,7 +176,9 @@ router.post("/register", async (req, res) => {
     }
 
     if (!mongoose.isValidObjectId(organizationId)) {
-      return res.status(400).json({ message: "Invalid organization ID." });
+      return res.status(400).json({
+        message: "Invalid organization ID.",
+      });
     }
 
     const normalizedEmail = email.trim().toLowerCase();
@@ -145,25 +187,58 @@ router.post("/register", async (req, res) => {
     const organization = await Organization.findById(organizationId);
 
     if (!organization) {
-      return res.status(404).json({ message: "Organization not found." });
-    }
-
-    if (await User.findOne({ email: normalizedEmail })) {
-      return res.status(409).json({
-        message:
-          "This email already has an account. Contact the organization admin if you need access restored.",
+      return res.status(404).json({
+        message: "Organization not found.",
       });
     }
 
-    const existingEmployeeId = await User.findOne({
+    const existingEmailUser = await User.findOne({
+      email: normalizedEmail,
+    });
+
+    const existingEmployeeUser = await User.findOne({
       organizationId: organization._id,
       employeeId: normalizedEmployeeId,
     });
 
-    if (existingEmployeeId) {
-      return res.status(409).json({
+    // Permit re-registration only for the same rejected account.
+    if (existingEmailUser || existingEmployeeUser) {
+      const sameRejectedAccount =
+        existingEmailUser &&
+        existingEmployeeUser &&
+        existingEmailUser._id.equals(existingEmployeeUser._id) &&
+        existingEmailUser.role === "user" &&
+        existingEmailUser.organizationId &&
+        existingEmailUser.organizationId.equals(organization._id) &&
+        existingEmailUser.approvalStatus === "rejected" &&
+        existingEmailUser.isDeleted !== true;
+
+      if (!sameRejectedAccount) {
+        return res.status(409).json({
+          message:
+            "This email or employee ID is already registered. Rejected employees must apply again using the same email, employee ID, and organization.",
+        });
+      }
+
+      const hashedPassword = await bcrypt.hash(password, 12);
+
+      existingEmailUser.name = name.trim();
+      existingEmailUser.password = hashedPassword;
+      existingEmailUser.approvalStatus = "pending";
+
+      await existingEmailUser.save();
+
+      return res.status(200).json({
         message:
-          "This employee ID is already registered. Contact the organization admin to restore the existing account if needed.",
+          "Your registration request has been submitted again. Please wait for admin approval.",
+        user: {
+          id: existingEmailUser._id,
+          name: existingEmailUser.name,
+          email: existingEmailUser.email,
+          employeeId: existingEmailUser.employeeId,
+          organizationId: existingEmailUser.organizationId,
+          approvalStatus: existingEmailUser.approvalStatus,
+        },
       });
     }
 
@@ -178,8 +253,6 @@ router.post("/register", async (req, res) => {
       employeeId: normalizedEmployeeId,
       approvalStatus: "pending",
       isDeleted: false,
-      deletedAt: null,
-      deletedBy: null,
     });
 
     return res.status(201).json({
@@ -208,7 +281,11 @@ router.post("/register", async (req, res) => {
   }
 });
 
-// Login.
+// =====================================================
+// 3. LOGIN
+// POST /api/auth/login
+// =====================================================
+
 router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -229,22 +306,21 @@ router.post("/login", async (req, res) => {
       });
     }
 
-    if (user.isDeleted) {
+    if (user.isDeleted === true) {
       return res.status(403).json({
         message: "This account has been archived. Contact your admin.",
       });
     }
 
-    if (
-      user.role === "user" &&
-      user.approvalStatus !== "approved"
-    ) {
+    if (user.role === "user" && user.approvalStatus !== "approved") {
+      const statusMessage =
+        user.approvalStatus === "rejected"
+          ? "Your registration request was rejected. You can register again using the same email and employee ID."
+          : "Your registration request is pending admin approval.";
+
       return res.status(403).json({
-        message:
-          user.approvalStatus === "rejected"
-            ? "Your registration was rejected. Contact your admin."
-            : "Your registration is waiting for admin approval.",
-        approvalStatus: user.approvalStatus,
+        message: statusMessage,
+        approvalStatus: user.approvalStatus || "pending",
       });
     }
 
@@ -255,6 +331,8 @@ router.post("/login", async (req, res) => {
     }
 
     if (!process.env.JWT_SECRET) {
+      console.error("JWT_SECRET is missing.");
+
       return res.status(500).json({
         message: "Server configuration error.",
       });
@@ -280,267 +358,447 @@ router.post("/login", async (req, res) => {
         role: user.role,
         employeeId: user.employeeId || null,
         organizationId: user.organizationId,
-        approvalStatus: user.approvalStatus || "approved",
+        approvalStatus: user.approvalStatus,
       },
     });
   } catch (error) {
     console.error("Login error:", error);
-    return res.status(500).json({ message: "Login failed." });
-  }
-});
 
-// Get pending registration requests.
-router.get("/employee-requests", authMiddleware, async (req, res) => {
-  try {
-    if (!adminOnly(req, res)) return;
-
-    const requests = await User.find({
-      organizationId: req.user.organizationId,
-      role: "user",
-      approvalStatus: "pending",
-      isDeleted: { $ne: true },
-    })
-      .select("name email employeeId approvalStatus createdAt")
-      .sort({ createdAt: -1 })
-      .lean();
-
-    return res.json(requests);
-  } catch (error) {
-    console.error("Get employee requests error:", error);
     return res.status(500).json({
-      message: "Failed to load employee registration requests.",
+      message: "Login failed.",
     });
   }
 });
 
-// Approve or reject a registration request.
-router.patch("/employee-requests/:id", authMiddleware, async (req, res) => {
-  try {
-    if (!adminOnly(req, res)) return;
+// =====================================================
+// 4. GET PENDING EMPLOYEE REQUESTS
+// GET /api/auth/employee-requests
+// =====================================================
 
-    const { status } = req.body;
+router.get(
+  "/employee-requests",
+  authMiddleware,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const requests = await User.find({
+        organizationId: req.user.organizationId,
+        role: "user",
+        approvalStatus: "pending",
+        isDeleted: { $ne: true },
+      })
+        .select("name email employeeId approvalStatus createdAt")
+        .sort({ createdAt: -1 })
+        .lean();
 
-    if (!["approved", "rejected"].includes(status)) {
-      return res.status(400).json({
-        message: "Status must be approved or rejected.",
+      return res.json(requests);
+    } catch (error) {
+      console.error("Get employee requests error:", error);
+
+      return res.status(500).json({
+        message: "Failed to load employee registration requests.",
       });
     }
+  }
+);
 
-    if (!mongoose.isValidObjectId(req.params.id)) {
-      return res.status(400).json({ message: "Invalid employee ID." });
-    }
+// =====================================================
+// 5. APPROVE OR REJECT EMPLOYEE REQUEST
+// PATCH /api/auth/employee-requests/:id
+// =====================================================
 
-    const employee = await User.findOne({
-      _id: req.params.id,
-      organizationId: req.user.organizationId,
-      role: "user",
-      approvalStatus: "pending",
-      isDeleted: { $ne: true },
-    });
+router.patch(
+  "/employee-requests/:id",
+  authMiddleware,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const { status } = req.body;
 
-    if (!employee) {
-      return res.status(404).json({
-        message: "Pending employee request not found.",
+      if (!["approved", "rejected"].includes(status)) {
+        return res.status(400).json({
+          message: "Status must be approved or rejected.",
+        });
+      }
+
+      if (!mongoose.isValidObjectId(req.params.id)) {
+        return res.status(400).json({
+          message: "Invalid employee request ID.",
+        });
+      }
+
+      const employee = await User.findOne({
+        _id: req.params.id,
+        organizationId: req.user.organizationId,
+        role: "user",
+        approvalStatus: "pending",
+        isDeleted: { $ne: true },
+      });
+
+      if (!employee) {
+        return res.status(404).json({
+          message: "Pending employee request not found in your organization.",
+        });
+      }
+
+      employee.approvalStatus = status;
+      await employee.save();
+
+      return res.json({
+        message: `Employee request ${status} successfully.`,
+        employee: {
+          id: employee._id,
+          name: employee.name,
+          email: employee.email,
+          employeeId: employee.employeeId,
+          approvalStatus: employee.approvalStatus,
+        },
+      });
+    } catch (error) {
+      console.error("Review employee request error:", error);
+
+      return res.status(500).json({
+        message: "Failed to review employee request.",
       });
     }
+  }
+);
 
-    employee.approvalStatus = status;
-    await employee.save();
+// =====================================================
+// 6. GET APPROVED EMPLOYEES
+// GET /api/auth/employees
+// =====================================================
 
-    return res.json({
-      message: `Employee request ${status} successfully.`,
-      employee: {
-        id: employee._id,
-        name: employee.name,
+router.get(
+  "/employees",
+  authMiddleware,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const employees = await User.find({
+        organizationId: req.user.organizationId,
+        role: "user",
+        approvalStatus: "approved",
+        isDeleted: { $ne: true },
+      })
+        .select("name email employeeId createdAt")
+        .sort({ createdAt: -1 })
+        .lean();
+
+      return res.json(employees);
+    } catch (error) {
+      console.error("Get employees error:", error);
+
+      return res.status(500).json({
+        message: "Failed to load employees.",
+      });
+    }
+  }
+);
+
+// =====================================================
+// 7. EDIT APPROVED EMPLOYEE
+// PATCH /api/auth/employees/:id
+// =====================================================
+
+router.patch(
+  "/employees/:id",
+  authMiddleware,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      if (!mongoose.isValidObjectId(req.params.id)) {
+        return res.status(400).json({
+          message: "Invalid employee ID.",
+        });
+      }
+
+      const { name, email, employeeId } = req.body;
+
+      if (!name?.trim() || !email?.trim() || !employeeId?.trim()) {
+        return res.status(400).json({
+          message: "Name, email and employee ID are required.",
+        });
+      }
+
+      const employee = await User.findOne({
+        _id: req.params.id,
+        organizationId: req.user.organizationId,
+        role: "user",
+        approvalStatus: "approved",
+        isDeleted: { $ne: true },
+      });
+
+      if (!employee) {
+        return res.status(404).json({
+          message: "Approved employee not found.",
+        });
+      }
+
+      const normalizedEmail = email.trim().toLowerCase();
+      const normalizedEmployeeId = employeeId.trim().toUpperCase();
+
+      const duplicateEmail = await User.findOne({
+        email: normalizedEmail,
+        _id: { $ne: employee._id },
+      });
+
+      if (duplicateEmail) {
+        return res.status(409).json({
+          message: "This email is already registered.",
+        });
+      }
+
+      const duplicateEmployeeId = await User.findOne({
+        organizationId: req.user.organizationId,
+        employeeId: normalizedEmployeeId,
+        _id: { $ne: employee._id },
+      });
+
+      if (duplicateEmployeeId) {
+        return res.status(409).json({
+          message: "This employee ID is already used in your organization.",
+        });
+      }
+
+      employee.name = name.trim();
+      employee.email = normalizedEmail;
+      employee.employeeId = normalizedEmployeeId;
+
+      await employee.save();
+
+      return res.json({
+        message: "Employee updated successfully.",
+        employee: {
+          _id: employee._id,
+          name: employee.name,
+          email: employee.email,
+          employeeId: employee.employeeId,
+          createdAt: employee.createdAt,
+        },
+      });
+    } catch (error) {
+      console.error("Edit employee error:", error);
+
+      if (error.code === 11000) {
+        return res.status(409).json({
+          message: "Email or employee ID already exists.",
+        });
+      }
+
+      return res.status(500).json({
+        message: "Failed to update employee.",
+      });
+    }
+  }
+);
+
+// =====================================================
+// 8. ARCHIVE EMPLOYEE
+// DELETE /api/auth/employees/:id
+// =====================================================
+
+router.delete(
+  "/employees/:id",
+  authMiddleware,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      if (!mongoose.isValidObjectId(req.params.id)) {
+        return res.status(400).json({
+          message: "Invalid employee ID.",
+        });
+      }
+
+      const employee = await User.findOne({
+        _id: req.params.id,
+        organizationId: req.user.organizationId,
+        role: "user",
+        approvalStatus: "approved",
+        isDeleted: { $ne: true },
+      });
+
+      if (!employee) {
+        return res.status(404).json({
+          message: "Employee not found in your organization.",
+        });
+      }
+
+      employee.isDeleted = true;
+      employee.deletedAt = new Date();
+      employee.deletedBy = req.user.userId;
+
+      await employee.save();
+
+      return res.json({
+        message: "Employee archived successfully.",
+      });
+    } catch (error) {
+      console.error("Archive employee error:", error);
+
+      return res.status(500).json({
+        message: "Failed to archive employee.",
+      });
+    }
+  }
+);
+
+// =====================================================
+// 9. GET REJECTED EMPLOYEES
+// GET /api/auth/rejected-employees
+// =====================================================
+
+router.get(
+  "/rejected-employees",
+  authMiddleware,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const employees = await User.find({
+        organizationId: req.user.organizationId,
+        role: "user",
+        approvalStatus: "rejected",
+        isDeleted: { $ne: true },
+      })
+        .select("name email employeeId approvalStatus createdAt")
+        .sort({ createdAt: -1 })
+        .lean();
+
+      return res.json(employees);
+    } catch (error) {
+      console.error("Get rejected employees error:", error);
+
+      return res.status(500).json({
+        message: "Failed to load rejected employees.",
+      });
+    }
+  }
+);
+
+// =====================================================
+// 10. GET ARCHIVED EMPLOYEES
+// GET /api/auth/archived-employees
+// =====================================================
+
+router.get(
+  "/archived-employees",
+  authMiddleware,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const employees = await User.find({
+        organizationId: req.user.organizationId,
+        role: "user",
+        isDeleted: true,
+      })
+        .select(
+          "name email employeeId approvalStatus createdAt deletedAt deletedBy"
+        )
+        .sort({ deletedAt: -1 })
+        .lean();
+
+      return res.json(employees);
+    } catch (error) {
+      console.error("Get archived employees error:", error);
+
+      return res.status(500).json({
+        message: "Failed to load archived employees.",
+      });
+    }
+  }
+);
+
+// =====================================================
+// 11. RESTORE ARCHIVED EMPLOYEE
+// PATCH /api/auth/archived-employees/:id/restore
+// =====================================================
+
+router.patch(
+  "/archived-employees/:id/restore",
+  authMiddleware,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      if (!mongoose.isValidObjectId(req.params.id)) {
+        return res.status(400).json({
+          message: "Invalid employee ID.",
+        });
+      }
+
+      const employee = await User.findOne({
+        _id: req.params.id,
+        organizationId: req.user.organizationId,
+        role: "user",
+        isDeleted: true,
+      });
+
+      if (!employee) {
+        return res.status(404).json({
+          message: "Archived employee not found.",
+        });
+      }
+
+      const duplicateEmail = await User.findOne({
         email: employee.email,
+        _id: { $ne: employee._id },
+      });
+
+      if (duplicateEmail) {
+        return res.status(409).json({
+          message:
+            "Another account is using this email. Resolve the duplicate before restoring.",
+        });
+      }
+
+      const duplicateEmployeeId = await User.findOne({
+        organizationId: employee.organizationId,
         employeeId: employee.employeeId,
-        approvalStatus: employee.approvalStatus,
-      },
-    });
-  } catch (error) {
-    console.error("Review employee request error:", error);
-    return res.status(500).json({
-      message: "Failed to review employee request.",
-    });
-  }
-});
+        _id: { $ne: employee._id },
+      });
 
-// Get approved employees.
-router.get("/employees", authMiddleware, async (req, res) => {
-  try {
-    if (!adminOnly(req, res)) return;
+      if (duplicateEmployeeId) {
+        return res.status(409).json({
+          message:
+            "Another account is using this employee ID. Resolve the duplicate before restoring.",
+        });
+      }
 
-    const employees = await User.find({
-      organizationId: req.user.organizationId,
-      role: "user",
-      approvalStatus: "approved",
-      isDeleted: { $ne: true },
-    })
-      .select("name email employeeId createdAt")
-      .sort({ createdAt: -1 })
-      .lean();
+      employee.isDeleted = false;
+      employee.deletedAt = undefined;
+      employee.deletedBy = undefined;
 
-    return res.json(employees);
-  } catch (error) {
-    console.error("Get employees error:", error);
-    return res.status(500).json({
-      message: "Failed to load employees.",
-    });
-  }
-});
+      await employee.save();
 
-// Edit an approved employee.
-router.patch("/employees/:id", authMiddleware, async (req, res) => {
-  try {
-    if (!adminOnly(req, res)) return;
+      return res.json({
+        message: "Employee restored successfully.",
+        employee: {
+          _id: employee._id,
+          name: employee.name,
+          email: employee.email,
+          employeeId: employee.employeeId,
+          approvalStatus: employee.approvalStatus,
+        },
+      });
+    } catch (error) {
+      console.error("Restore employee error:", error);
 
-    if (!mongoose.isValidObjectId(req.params.id)) {
-      return res.status(400).json({ message: "Invalid employee ID." });
-    }
-
-    const { name, email, employeeId } = req.body;
-
-    if (!name?.trim() || !email?.trim() || !employeeId?.trim()) {
-      return res.status(400).json({
-        message: "Name, email, and employee ID are required.",
+      return res.status(500).json({
+        message: "Failed to restore employee.",
       });
     }
-
-    const employee = await User.findOne({
-      _id: req.params.id,
-      organizationId: req.user.organizationId,
-      role: "user",
-      approvalStatus: "approved",
-      isDeleted: { $ne: true },
-    });
-
-    if (!employee) {
-      return res.status(404).json({ message: "Employee not found." });
-    }
-
-    const normalizedEmail = email.trim().toLowerCase();
-    const normalizedEmployeeId = employeeId.trim().toUpperCase();
-
-    const emailExists = await User.findOne({
-      email: normalizedEmail,
-      _id: { $ne: employee._id },
-    });
-
-    if (emailExists) {
-      return res.status(409).json({ message: "Email is already in use." });
-    }
-
-    const employeeIdExists = await User.findOne({
-      organizationId: req.user.organizationId,
-      employeeId: normalizedEmployeeId,
-      _id: { $ne: employee._id },
-    });
-
-    if (employeeIdExists) {
-      return res.status(409).json({
-        message: "Employee ID is already in use in this organization.",
-      });
-    }
-
-    employee.name = name.trim();
-    employee.email = normalizedEmail;
-    employee.employeeId = normalizedEmployeeId;
-    await employee.save();
-
-    return res.json({
-      message: "Employee updated successfully.",
-      employee: {
-        _id: employee._id,
-        name: employee.name,
-        email: employee.email,
-        employeeId: employee.employeeId,
-        createdAt: employee.createdAt,
-      },
-    });
-  } catch (error) {
-    console.error("Edit employee error:", error);
-
-    if (error.code === 11000) {
-      return res.status(409).json({
-        message: "Email or employee ID is already in use.",
-      });
-    }
-
-    return res.status(500).json({ message: "Failed to edit employee." });
   }
-});
-
-// Archive instead of permanently deleting an employee.
-router.delete("/employees/:id", authMiddleware, async (req, res) => {
-  try {
-    if (!adminOnly(req, res)) return;
-
-    if (!mongoose.isValidObjectId(req.params.id)) {
-      return res.status(400).json({ message: "Invalid employee ID." });
-    }
-
-    const employee = await User.findOne({
-      _id: req.params.id,
-      organizationId: req.user.organizationId,
-      role: "user",
-      approvalStatus: "approved",
-      isDeleted: { $ne: true },
-    });
-
-    if (!employee) {
-      return res.status(404).json({ message: "Employee not found." });
-    }
-
-    employee.isDeleted = true;
-    employee.deletedAt = new Date();
-    employee.deletedBy = req.user.userId;
-    await employee.save();
-
-    return res.json({
-      message: "Employee archived successfully.",
-    });
-  } catch (error) {
-    console.error("Archive employee error:", error);
-    return res.status(500).json({
-      message: "Failed to archive employee.",
-    });
-  }
-});
-
-// Get rejected employees.
-router.get("/rejected-employees", authMiddleware, async (req, res) => {
-  try {
-    if (!adminOnly(req, res)) return;
-
-    const employees = await User.find({
-      organizationId: req.user.organizationId,
-      role: "user",
-      approvalStatus: "rejected",
-      isDeleted: { $ne: true },
-    })
-      .select("name email employeeId approvalStatus createdAt updatedAt")
-      .sort({ updatedAt: -1 })
-      .lean();
-
-    return res.json(employees);
-  } catch (error) {
-    console.error("Get rejected employees error:", error);
-    return res.status(500).json({
-      message: "Failed to load rejected employees.",
-    });
-  }
-});
-
-// Re-add a rejected employee by sending their existing request back to pending.
+);
+// Re-add a rejected employee for approval
 router.patch(
   "/rejected-employees/:id/re-add",
   authMiddleware,
+  requireAdmin,
   async (req, res) => {
     try {
-      if (!adminOnly(req, res)) return;
-
       if (!mongoose.isValidObjectId(req.params.id)) {
-        return res.status(400).json({ message: "Invalid employee ID." });
+        return res.status(400).json({
+          message: "Invalid employee ID.",
+        });
       }
 
       const employee = await User.findOne({
@@ -560,102 +818,14 @@ router.patch(
       employee.approvalStatus = "pending";
       await employee.save();
 
-      return res.json({
-        message: "Employee re-added for admin approval.",
+      return res.status(200).json({
+        message: "Employee has been moved back to pending approval.",
       });
     } catch (error) {
       console.error("Re-add rejected employee error:", error);
+
       return res.status(500).json({
         message: "Failed to re-add rejected employee.",
-      });
-    }
-  }
-);
-
-// Get archived employees.
-router.get("/archived-employees", authMiddleware, async (req, res) => {
-  try {
-    if (!adminOnly(req, res)) return;
-
-    const employees = await User.find({
-      organizationId: req.user.organizationId,
-      role: "user",
-      isDeleted: true,
-    })
-      .select("name email employeeId approvalStatus createdAt deletedAt")
-      .sort({ deletedAt: -1 })
-      .lean();
-
-    return res.json(employees);
-  } catch (error) {
-    console.error("Get archived employees error:", error);
-    return res.status(500).json({
-      message: "Failed to load archived employees.",
-    });
-  }
-});
-
-// Restore an archived employee.
-router.patch(
-  "/archived-employees/:id/restore",
-  authMiddleware,
-  async (req, res) => {
-    try {
-      if (!adminOnly(req, res)) return;
-
-      if (!mongoose.isValidObjectId(req.params.id)) {
-        return res.status(400).json({ message: "Invalid employee ID." });
-      }
-
-      const employee = await User.findOne({
-        _id: req.params.id,
-        organizationId: req.user.organizationId,
-        role: "user",
-        isDeleted: true,
-      });
-
-      if (!employee) {
-        return res.status(404).json({
-          message: "Archived employee not found.",
-        });
-      }
-
-      // Restore the account, but require approval if it was not approved before.
-      employee.isDeleted = false;
-      employee.deletedAt = null;
-      employee.deletedBy = null;
-
-      if (!employee.approvalStatus) {
-        employee.approvalStatus = "pending";
-      }
-
-      await employee.save();
-
-      return res.json({
-        message:
-          employee.approvalStatus === "approved"
-            ? "Employee restored successfully."
-            : "Employee restored. Admin approval is still required.",
-        employee: {
-          _id: employee._id,
-          name: employee.name,
-          email: employee.email,
-          employeeId: employee.employeeId,
-          approvalStatus: employee.approvalStatus,
-        },
-      });
-    } catch (error) {
-      console.error("Restore employee error:", error);
-
-      if (error.code === 11000) {
-        return res.status(409).json({
-          message:
-            "This employee ID conflicts with another active account. Edit the employee ID before restoring.",
-        });
-      }
-
-      return res.status(500).json({
-        message: "Failed to restore employee.",
       });
     }
   }

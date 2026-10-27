@@ -1292,3 +1292,66 @@ td > button.delete-button:hover {
   color: var(--accent);
   background: var(--accent-soft);
 }
+/* Professional Theme Toggle Button */
+.app .theme-toggle.icon-only {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  background: #f4f2ff;
+  color: #5145cd;
+  border: 1px solid #d9d4ff;
+  border-radius: 10px;
+
+  cursor: pointer;
+  transition: background 0.2s ease,
+              border-color 0.2s ease,
+              transform 0.2s ease;
+}
+
+.app .theme-toggle.icon-only:hover {
+  background: #e9e5ff;
+  border-color: #8b80ff;
+  transform: translateY(-1px);
+}
+
+.cloud-shield-icon {
+  position: relative;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cloud-shield-icon svg:first-child {
+  width: 26px;
+  height: 26px;
+  stroke-width: 1.8;
+}
+
+.cloud-shield-icon svg:last-child {
+  width: 15px;
+  height: 15px;
+  position: absolute;
+  right: -3px;
+  bottom: -1px;
+  stroke-width: 2;
+  background: transparent;
+}
+
+/* Dark Mode */
+.app[data-theme="dark"] .theme-toggle.icon-only {
+  background: #20283a;
+  color: #e4e5ff;
+  border-color: #39445c;
+}
+
+.app[data-theme="dark"] .theme-toggle.icon-only:hover {
+  background: #2b3550;
+  border-color: #7770ed;
+}

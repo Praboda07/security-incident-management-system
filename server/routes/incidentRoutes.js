@@ -1,14 +1,18 @@
 const express = require("express");
 const mongoose = require("mongoose");
+const fs = require("fs");
+const path = require("path");
+
 const router = express.Router();
 
 const Incident = require("../models/Incident");
-const Organization = require("../models/organization");
 const authMiddleware = require("../middleware/authMiddleware");
+const upload = require("../middleware/upload");
+
+const uploadsDirectory = path.join(__dirname, "..", "uploads");
 
 router.use(authMiddleware);
 
-// Check organization membership
 function requireOrganization(req, res, next) {
   if (!req.user.organizationId) {
     return res.status(403).json({
@@ -21,35 +25,68 @@ function requireOrganization(req, res, next) {
 
 router.use(requireOrganization);
 
-// CREATE incident
-router.post("/", async (req, res) => {
+// CREATE INCIDENT WITH OPTIONAL EVIDENCE IMAGES
+router.post("/", (req, res, next) => {
+  upload.array("images", 5)(req, res, function (error) {
+    if (error) {
+      return res.status(400).json({
+        message:
+          error.code === "LIMIT_FILE_SIZE"
+            ? "Each image must be 5 MB or smaller."
+            : error.code === "LIMIT_FILE_COUNT"
+            ? "You can attach a maximum of 5 images."
+            : error.message || "Image upload failed.",
+      });
+    }
+
+    next();
+  });
+}, async (req, res) => {
   try {
     const { title, description, category, severity } = req.body;
+
+    if (!title || !description || !category) {
+      return res.status(400).json({
+        message: "Title, description, and category are required.",
+      });
+    }
+
+    const images = (req.files || []).map(
+      (file) => `/uploads/${file.filename}`
+    );
 
     const incident = await Incident.create({
       title,
       description,
       category,
       severity,
+      images,
       reportedBy: req.user.userId,
       organizationId: req.user.organizationId,
     });
 
     return res.status(201).json({
-      message: "Incident created successfully",
+      message: "Incident created successfully.",
       incident,
     });
   } catch (error) {
     console.error("Create incident error:", error.message);
 
+    for (const file of req.files || []) {
+      fs.unlink(
+        path.join(uploadsDirectory, file.filename),
+        () => {}
+      );
+    }
+
     return res.status(400).json({
-      message: "Failed to create incident",
+      message: "Failed to create incident.",
       error: error.message,
     });
   }
 });
 
-// READ incidents within the user's organization
+// GET INCIDENTS
 router.get("/", async (req, res) => {
   try {
     const filter = {
@@ -69,17 +106,17 @@ router.get("/", async (req, res) => {
     console.error("Fetch incidents error:", error.message);
 
     return res.status(500).json({
-      message: "Failed to fetch incidents",
+      message: "Failed to fetch incidents.",
     });
   }
 });
 
-// READ one incident
+// GET ONE INCIDENT
 router.get("/:id", async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) {
       return res.status(400).json({
-        message: "Invalid incident ID",
+        message: "Invalid incident ID.",
       });
     }
 
@@ -96,24 +133,26 @@ router.get("/:id", async (req, res) => {
 
     if (!incident) {
       return res.status(404).json({
-        message: "Incident not found",
+        message: "Incident not found.",
       });
     }
 
     return res.status(200).json(incident);
   } catch (error) {
+    console.error("Fetch incident error:", error.message);
+
     return res.status(500).json({
-      message: "Failed to fetch incident",
+      message: "Failed to fetch incident.",
     });
   }
 });
 
-// UPDATE incident
+// UPDATE INCIDENT
 router.put("/:id", async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) {
       return res.status(400).json({
-        message: "Invalid incident ID",
+        message: "Invalid incident ID.",
       });
     }
 
@@ -128,7 +167,15 @@ router.put("/:id", async (req, res) => {
     if (status !== undefined) {
       if (req.user.role !== "admin") {
         return res.status(403).json({
-          message: "Only organization admins can change incident status",
+          message: "Only organization admins can change incident status.",
+        });
+      }
+
+      const allowedStatuses = ["Open", "In Progress", "Resolved"];
+
+      if (!allowedStatuses.includes(status)) {
+        return res.status(400).json({
+          message: "Invalid incident status.",
         });
       }
 
@@ -155,30 +202,30 @@ router.put("/:id", async (req, res) => {
 
     if (!incident) {
       return res.status(404).json({
-        message: "Incident not found",
+        message: "Incident not found.",
       });
     }
 
     return res.status(200).json({
-      message: "Incident updated successfully",
+      message: "Incident updated successfully.",
       incident,
     });
   } catch (error) {
     console.error("Update incident error:", error.message);
 
     return res.status(400).json({
-      message: "Failed to update incident",
+      message: "Failed to update incident.",
       error: error.message,
     });
   }
 });
 
-// DELETE incident
+// DELETE INCIDENT
 router.delete("/:id", async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) {
       return res.status(400).json({
-        message: "Invalid incident ID",
+        message: "Invalid incident ID.",
       });
     }
 
@@ -195,16 +242,29 @@ router.delete("/:id", async (req, res) => {
 
     if (!incident) {
       return res.status(404).json({
-        message: "Incident not found",
+        message: "Incident not found.",
+      });
+    }
+
+    for (const imagePath of incident.images || []) {
+      const filename = path.basename(imagePath);
+      const fullPath = path.join(uploadsDirectory, filename);
+
+      fs.unlink(fullPath, (error) => {
+        if (error && error.code !== "ENOENT") {
+          console.error("Unable to delete evidence image:", error.message);
+        }
       });
     }
 
     return res.status(200).json({
-      message: "Incident deleted successfully",
+      message: "Incident deleted successfully.",
     });
   } catch (error) {
+    console.error("Delete incident error:", error.message);
+
     return res.status(500).json({
-      message: "Failed to delete incident",
+      message: "Failed to delete incident.",
     });
   }
 });
