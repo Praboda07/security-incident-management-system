@@ -13,7 +13,7 @@ import {
 
 import { getEmployees } from "./api/authApi";
 
-const API_URL = "http://localhost:5000/api/auth";
+const API_URL = "https://venom-gifted-polar-bear.abasthan.app/api/auth";
 
 const initialForm = {
   title: "",
@@ -341,7 +341,7 @@ function toggleTheme() {
     setRequestMessage("");
 
     try {
-      const data = await apiRequest(`/employee-requests/${id}`, {
+      await apiRequest(`/employee-requests/${id}`, {
         method: "PATCH",
         body: JSON.stringify({ status }),
       });
