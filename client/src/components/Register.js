@@ -1,6 +1,9 @@
 
 import React, { useState } from "react";
 import "./Register.css";
+import DigitalGlobe from "./DigitalGlobe.js";
+
+
 
 const API_URL = "http://localhost:5000/api/auth";
 
@@ -125,6 +128,14 @@ function Register({ onRegisterSuccess, onShowLogin }) {
 
   return (
     <main className="register-page">
+      <main className="register-page">
+  <DigitalGlobe />
+
+  <div className="register-background register-background-one" />
+  <div className="register-background register-background-two" />
+
+  {/* Keep your existing register-card and form here */}
+</main>
       <div className="register-background register-background-one" />
       <div className="register-background register-background-two" />
 

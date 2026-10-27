@@ -759,3 +759,536 @@ td > button.delete-button:hover {
     animation-duration: 0.01ms !important;
   }
 }
+
+/* =========================================
+   SIMS MODERN LIGHT / DARK DASHBOARD THEME
+========================================= */
+
+.app {
+  --page-bg: #f3f5fb;
+  --surface: #ffffff;
+  --surface-soft: #f7f8fd;
+  --surface-hover: #f0efff;
+  --text-primary: #192238;
+  --text-secondary: #69758c;
+  --border-color: #e2e6f0;
+  --accent: #5546e8;
+  --accent-hover: #4435d4;
+  --accent-soft: #efedff;
+  --success: #13845a;
+  --success-bg: #e8f8ef;
+  --danger: #c63e52;
+  --danger-bg: #fff0f1;
+  --warning: #a96b08;
+  --warning-bg: #fff5df;
+  --shadow: 0 8px 28px rgba(31, 41, 74, 0.06);
+
+  min-height: 100vh;
+  color: var(--text-primary);
+  background: var(--page-bg);
+  font-family: "Inter", "Segoe UI", sans-serif;
+  transition: none !important;
+}
+
+/* Dark theme */
+.app[data-theme="dark"] {
+  --page-bg: #080c14;
+  --surface: #101725;
+  --surface-soft: #151e2e;
+  --surface-hover: #20223e;
+  --text-primary: #f2f5ff;
+  --text-secondary: #a4b0c5;
+  --border-color: #283449;
+  --accent: #7669ff;
+  --accent-hover: #8a80ff;
+  --accent-soft: #262448;
+  --success: #61dfa0;
+  --success-bg: #123326;
+  --danger: #ff8794;
+  --danger-bg: #3b2029;
+  --warning: #ffd17a;
+  --warning-bg: #382d1a;
+  --shadow: 0 10px 32px rgba(0, 0, 0, 0.16);
+}
+
+/* Main header */
+.app .header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 18px;
+  padding: 22px clamp(20px, 5%, 72px);
+  color: var(--text-primary);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border-color);
+  box-shadow: var(--shadow);
+}
+
+.app .header h1 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: clamp(23px, 2.5vw, 30px);
+  font-weight: 800;
+  letter-spacing: -0.8px;
+}
+
+.app .header p {
+  margin: 6px 0 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.app .header-user {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.app .system-status {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+/* Dashboard content */
+.app .dashboard {
+  width: min(1440px, 100%);
+  margin: 0 auto;
+  padding: 34px clamp(16px, 5%, 72px) 55px;
+  box-sizing: border-box;
+  background: transparent;
+}
+
+.app .welcome {
+  margin-bottom: 26px;
+}
+
+.app .welcome h2 {
+  margin: 0 0 8px;
+  color: var(--text-primary);
+  font-size: clamp(26px, 3vw, 35px);
+  font-weight: 800;
+  letter-spacing: -1px;
+}
+
+.app .welcome p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+/* Navigation */
+.app .dashboard-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 24px 0 28px;
+  padding: 7px;
+  background: var(--surface);
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+}
+
+.app .dashboard-nav button {
+  flex: 1 1 170px;
+  min-height: 44px;
+  padding: 11px 16px;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.app .dashboard-nav button.active {
+  color: #ffffff;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.app .dashboard-nav button:hover:not(.active) {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/* Summary cards */
+.app .summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
+  gap: 18px;
+  margin: 25px 0 30px;
+}
+
+.app .summary-card {
+  min-width: 0;
+  padding: 23px;
+  color: var(--text-primary);
+  background: var(--surface);
+  border: 1px solid var(--border-color);
+  border-radius: 15px;
+  box-shadow: var(--shadow);
+}
+
+.app .summary-card p {
+  margin: 0 0 14px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.app .summary-card h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 31px;
+  font-weight: 800;
+}
+
+/* Dashboard sections */
+.app .incident-section,
+.app .employee-section,
+.app .employee-management,
+.app .form-section,
+.app .request-section,
+.app .table-section {
+  margin-bottom: 23px;
+  padding: clamp(18px, 3%, 27px);
+  color: var(--text-primary);
+  background: var(--surface);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+}
+
+.app section h2,
+.app section h3 {
+  color: var(--text-primary);
+}
+
+.app section p {
+  color: var(--text-secondary);
+  line-height: 1.65;
+}
+
+.app .incident-section > h2,
+.app .employee-section > h2,
+.app .employee-management > h2,
+.app .form-section > h2,
+.app .request-section > h2,
+.app .table-section > h2 {
+  margin-top: 0;
+  font-size: 21px;
+  font-weight: 750;
+}
+
+/* Inputs */
+.app input,
+.app textarea,
+.app select {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  color: var(--text-primary);
+  background: var(--surface-soft);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  outline: none;
+  font-family: inherit;
+  font-size: 14px;
+}
+
+.app input::placeholder,
+.app textarea::placeholder {
+  color: var(--text-secondary);
+  opacity: 0.8;
+}
+
+.app input:focus,
+.app textarea:focus,
+.app select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.app input:disabled,
+.app textarea:disabled,
+.app select:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.app label {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.app textarea {
+  min-height: 110px;
+  resize: vertical;
+}
+
+.app select option {
+  color: var(--text-primary);
+  background: var(--surface);
+}
+
+/* Buttons */
+.app button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.app button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.app button[type="submit"],
+.app .primary-button,
+.app .submit-button {
+  padding: 12px 19px;
+  color: #ffffff;
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.app button[type="submit"]:hover,
+.app .primary-button:hover,
+.app .submit-button:hover {
+  background: var(--accent-hover);
+}
+
+.app .logout-button {
+  padding: 10px 16px;
+  color: var(--danger);
+  background: var(--danger-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.app .logout-button:hover {
+  border-color: var(--danger);
+}
+
+/* Tables */
+.app table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--text-primary);
+  background: var(--surface);
+}
+
+.app th {
+  padding: 15px 14px;
+  text-align: left;
+  color: var(--text-primary);
+  background: var(--surface-soft);
+  border-bottom: 1px solid var(--border-color);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.app td {
+  padding: 14px;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-color);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.app tbody tr {
+  background: var(--surface);
+}
+
+.app tbody tr:hover {
+  background: var(--surface-hover);
+}
+
+.app tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* Employee and incident records */
+.app .incident-card,
+.app .employee-card,
+.app .request-card,
+.app .list-item {
+  margin-bottom: 14px;
+  padding: 18px;
+  color: var(--text-primary);
+  background: var(--surface-soft);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+}
+
+.app .incident-card h3,
+.app .employee-card h3,
+.app .request-card h3 {
+  color: var(--text-primary);
+}
+
+.app .incident-card p,
+.app .employee-card p,
+.app .request-card p {
+  color: var(--text-secondary);
+}
+
+/* Empty states */
+.app .empty-state,
+.app .no-data,
+.app .empty-message {
+  padding: 25px;
+  color: var(--text-secondary);
+  background: var(--surface-soft);
+  border: 1px dashed var(--border-color);
+  border-radius: 12px;
+  text-align: center;
+}
+
+/* Feedback messages */
+.app .error,
+.app .error-message {
+  padding: 13px 16px;
+  color: var(--danger);
+  background: var(--danger-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  overflow-wrap: anywhere;
+}
+
+.app .success-message,
+.app .success {
+  padding: 13px 16px;
+  color: var(--success);
+  background: var(--success-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  overflow-wrap: anywhere;
+}
+
+/* Status badges */
+.app .status,
+.app .status-badge {
+  display: inline-block;
+  padding: 5px 10px;
+  color: var(--text-secondary);
+  background: var(--surface-soft);
+  border: 1px solid var(--border-color);
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.app .status-open {
+  color: var(--danger);
+  background: var(--danger-bg);
+}
+
+.app .status-resolved {
+  color: var(--success);
+  background: var(--success-bg);
+}
+
+/* Scrollbars */
+.app * {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-color) var(--surface);
+}
+
+.app *::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.app *::-webkit-scrollbar-track {
+  background: var(--surface);
+}
+
+.app *::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 10px;
+}
+
+/* Responsive layout */
+@media (max-width: 700px) {
+  .app .header {
+    align-items: flex-start;
+    padding: 20px;
+  }
+
+  .app .header-user {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .app .dashboard {
+    padding: 24px 15px 40px;
+  }
+
+  .app .summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .app .summary-card {
+    padding: 17px;
+  }
+
+  .app .summary-card h3 {
+    font-size: 26px;
+  }
+
+  .app .incident-section,
+  .app .employee-section,
+  .app .employee-management,
+  .app .form-section,
+  .app .request-section,
+  .app .table-section {
+    padding: 17px;
+  }
+
+  .app .table-wrapper,
+  .app .table-container {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .app table {
+    min-width: 600px;
+  }
+}
+
+@media (max-width: 400px) {
+  .app .summary {
+    grid-template-columns: 1fr;
+  }
+}
+
+.app .theme-toggle {
+  padding: 10px 15px;
+  color: var(--text-primary);
+  background: var(--surface-soft);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.app .theme-toggle:hover {
+  color: var(--accent);
+  background: var(--accent-soft);
+}

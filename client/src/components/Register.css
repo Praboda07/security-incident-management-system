@@ -441,3 +441,120 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Dark digital globe background */
+
+.register-page {
+  background: transparent !important;
+  isolation: isolate;
+}
+
+.register-page > .register-background {
+  display: none;
+}
+
+/* Dark glass registration card */
+
+.register-card {
+  position: relative;
+  z-index: 1;
+  background: rgba(12, 17, 27, 0.90);
+  border-color: rgba(130, 165, 205, 0.22);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+/* Text */
+
+.register-brand h1,
+.register-heading h2,
+.register-field label {
+  color: #f3f6ff;
+}
+
+.register-subtitle,
+.register-heading p {
+  color: #b4bfd2;
+}
+
+.register-field input {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(157, 179, 211, 0.28);
+}
+
+.register-field input::placeholder {
+  color: #9caac0;
+}
+
+.register-field input:focus {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: #7167ff;
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.15);
+}
+
+.register-field input:disabled {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+/* Registration tabs */
+
+.register-tabs {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(157, 179, 211, 0.15);
+}
+
+.register-tab {
+  color: #c0c9da;
+}
+
+.register-tab:hover {
+  color: #ffffff;
+  background: rgba(99, 102, 241, 0.18);
+}
+
+.register-tab.selected {
+  color: #ffffff;
+  background: linear-gradient(135deg, #6258f5, #493de0);
+  border-color: #7167ff;
+}
+
+/* Footer */
+
+.register-footer {
+  border-color: rgba(157, 179, 211, 0.18);
+  color: #b4bfd2;
+}
+
+.register-login-link {
+  color: #c7c3ff;
+  background: rgba(99, 102, 241, 0.17);
+}
+
+.register-login-link:hover {
+  color: #ffffff;
+  background: rgba(99, 102, 241, 0.3);
+}
+
+.register-security-note {
+  color: #9caac0;
+}
+
+.register-field small {
+  color: #aab6ca;
+}
+
+/* Mobile compatibility */
+
+@media (max-width: 520px) {
+  .register-card {
+    background: rgba(12, 17, 27, 0.94);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .register-card {
+    animation: none !important;
+  }
+}

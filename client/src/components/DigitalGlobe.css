@@ -1,0 +1,29 @@
+
+.digital-globe-background {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  background: #080b10;
+}
+
+.digital-globe-background canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.digital-globe-scanlines {
+  position: absolute;
+  inset: 0;
+  opacity: 0.12;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent 3px,
+    rgba(120, 160, 190, 0.08) 4px,
+    transparent 5px
+  );
+  pointer-events: none;
+}

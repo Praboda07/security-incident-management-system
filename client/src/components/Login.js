@@ -1,6 +1,7 @@
 
 import React, { useState } from "react";
 import "./Login.css";
+import DigitalGlobe from "./DigitalGlobe";
 
 function Login({ onLogin, onShowRegister }) {
   const [email, setEmail] = useState("");
@@ -11,20 +12,52 @@ function Login({ onLogin, onShowRegister }) {
 
   async function handleSubmit(event) {
     event.preventDefault();
+
     setError("");
     setLoading(true);
 
     try {
-      if (typeof onLogin !== "function") {
-        throw new Error("Login handler is not configured.");
+      const response = await fetch(
+        "http://localhost:5000/api/auth/login",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email: email.trim(),
+            password,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.message || "Invalid email or password."
+        );
       }
 
-      await onLogin({
-        email: email.trim(),
-        password,
-      });
+      if (!data.token || !data.user) {
+        throw new Error(
+          "Login response is missing the user or token."
+        );
+      }
+
+      // Send the successful login response to App.js.
+      if (typeof onLogin === "function") {
+        onLogin(data);
+      } else {
+        throw new Error("Login handler is not configured.");
+      }
     } catch (err) {
-      setError(err.message || "Unable to log in. Please try again.");
+      console.error("Login error:", err);
+
+      setError(
+        err.message ||
+          "Unable to connect to the server. Please try again."
+      );
     } finally {
       setLoading(false);
     }
@@ -32,6 +65,8 @@ function Login({ onLogin, onShowRegister }) {
 
   return (
     <main className="login-page">
+      <DigitalGlobe />
+
       <div className="login-background login-background-one" />
       <div className="login-background login-background-two" />
 
@@ -61,7 +96,9 @@ function Login({ onLogin, onShowRegister }) {
           </div>
 
           <span className="login-eyebrow">SECURE ACCESS</span>
+
           <h1>Welcome Back</h1>
+
           <p>Sign in to your SIMS account.</p>
         </div>
 
@@ -74,7 +111,10 @@ function Login({ onLogin, onShowRegister }) {
 
         <form className="login-form" onSubmit={handleSubmit}>
           <div className="login-field">
-            <label htmlFor="login-email">Email Address</label>
+            <label htmlFor="login-email">
+              Email Address
+            </label>
+
             <input
               id="login-email"
               type="email"
@@ -92,7 +132,9 @@ function Login({ onLogin, onShowRegister }) {
           </div>
 
           <div className="login-field">
-            <label htmlFor="login-password">Password</label>
+            <label htmlFor="login-password">
+              Password
+            </label>
 
             <div className="login-password-wrap">
               <input
@@ -116,7 +158,9 @@ function Login({ onLogin, onShowRegister }) {
                 onClick={() =>
                   setShowPassword((previous) => !previous)
                 }
-                aria-label={showPassword ? "Hide password" : "Show password"}
+                aria-label={
+                  showPassword ? "Hide password" : "Show password"
+                }
                 disabled={loading}
               >
                 {showPassword ? "Hide" : "Show"}
@@ -145,13 +189,13 @@ function Login({ onLogin, onShowRegister }) {
 
         <div className="login-register-footer">
           <span>Don't have an account?</span>
+
           <button
             type="button"
             className="login-register-link"
             onClick={onShowRegister}
           >
-            Register
-            <span aria-hidden="true"> →</span>
+            Register <span aria-hidden="true">→</span>
           </button>
         </div>
 

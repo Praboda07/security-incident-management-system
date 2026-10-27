@@ -350,3 +350,284 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Animated background for SIMS login */
+
+.login-page {
+  overflow: hidden;
+  isolation: isolate;
+  background: linear-gradient(
+    -45deg,
+    #f4f6fc,
+    #e8edff,
+    #f2edff,
+    #e4f5ff,
+    #f4f6fc
+  );
+  background-size: 400% 400%;
+  animation: simsBackgroundFlow 18s ease infinite;
+}
+
+/* Soft floating light orbs */
+
+.login-page::before,
+.login-page::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+  border-radius: 50%;
+  filter: blur(2px);
+  will-change: transform;
+}
+
+.login-page::before {
+  width: 340px;
+  height: 340px;
+  top: 5%;
+  left: -100px;
+  background: radial-gradient(
+    circle,
+    rgba(99, 102, 241, 0.24) 0%,
+    rgba(129, 140, 248, 0.12) 42%,
+    transparent 72%
+  );
+  animation: simsFloatOne 13s ease-in-out infinite alternate;
+}
+
+.login-page::after {
+  width: 410px;
+  height: 410px;
+  right: -120px;
+  bottom: -80px;
+  background: radial-gradient(
+    circle,
+    rgba(56, 189, 248, 0.22) 0%,
+    rgba(129, 140, 248, 0.1) 45%,
+    transparent 72%
+  );
+  animation: simsFloatTwo 16s ease-in-out infinite alternate;
+}
+
+/* Additional floating glow */
+
+.login-background-one {
+  width: 300px;
+  height: 300px;
+  top: 50%;
+  left: 5%;
+  opacity: 0.65;
+  background: radial-gradient(
+    circle,
+    rgba(167, 139, 250, 0.2),
+    transparent 70%
+  );
+  animation: simsFloatThree 12s ease-in-out infinite alternate;
+}
+
+.login-background-two {
+  width: 330px;
+  height: 330px;
+  top: 8%;
+  right: 8%;
+  opacity: 0.7;
+  background: radial-gradient(
+    circle,
+    rgba(96, 165, 250, 0.18),
+    transparent 70%
+  );
+  animation: simsFloatOne 15s ease-in-out infinite alternate-reverse;
+}
+
+/* Login card subtle entrance */
+
+.login-card {
+  position: relative;
+  z-index: 1;
+  animation: simsCardEntrance 0.8s ease-out both;
+  transition:
+    box-shadow 0.35s ease,
+    border-color 0.35s ease;
+}
+
+.login-card:hover {
+  border-color: rgba(129, 140, 248, 0.5);
+  box-shadow: 0 28px 80px rgba(49, 46, 129, 0.14);
+}
+
+/* Brand icon gentle glow */
+
+.login-brand-icon {
+  animation: simsIconGlow 4s ease-in-out infinite;
+}
+
+/* Button hover effect */
+
+.login-submit {
+  position: relative;
+  overflow: hidden;
+}
+
+.login-submit::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -120%;
+  width: 80%;
+  height: 100%;
+  transform: skewX(-22deg);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.24),
+    transparent
+  );
+  transition: left 0.65s ease;
+}
+
+.login-submit:hover:not(:disabled)::before {
+  left: 140%;
+}
+
+/* Animations */
+
+@keyframes simsBackgroundFlow {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes simsFloatOne {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(45px, 35px, 0) scale(1.12);
+  }
+  100% {
+    transform: translate3d(-15px, 65px, 0) scale(0.94);
+  }
+}
+
+@keyframes simsFloatTwo {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(-50px, -30px, 0) scale(1.1);
+  }
+  100% {
+    transform: translate3d(20px, -65px, 0) scale(0.95);
+  }
+}
+
+@keyframes simsFloatThree {
+  0% {
+    transform: translate3d(-10px, -20px, 0);
+  }
+  100% {
+    transform: translate3d(40px, 45px, 0);
+  }
+}
+
+@keyframes simsIconGlow {
+  0%,
+  100% {
+    box-shadow: 0 9px 22px rgba(79, 70, 229, 0.2);
+  }
+  50% {
+    box-shadow: 0 12px 32px rgba(79, 70, 229, 0.38);
+  }
+}
+
+@keyframes simsCardEntrance {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Respect accessibility preferences */
+
+@media (prefers-reduced-motion: reduce) {
+  .login-page,
+  .login-page::before,
+  .login-page::after,
+  .login-background-one,
+  .login-background-two,
+  .login-card,
+  .login-brand-icon {
+    animation: none !important;
+  }
+
+  .login-card,
+  .login-submit::before {
+    transition: none !important;
+  }
+}
+
+.login-page {
+  background: transparent !important;
+  isolation: isolate;
+}
+
+.login-page > .login-background {
+  display: none;
+}
+
+.login-card {
+  background: rgba(12, 17, 27, 0.88);
+  border-color: rgba(130, 165, 205, 0.22);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.login-brand h1,
+.login-field label {
+  color: #f3f6ff;
+}
+
+.login-brand > p,
+.login-register-footer {
+  color: #b4bfd2;
+}
+
+.login-field input {
+  background: rgba(255, 255, 255, 0.06);
+  color: #ffffff;
+  border-color: rgba(157, 179, 211, 0.28);
+}
+
+.login-field input::placeholder {
+  color: #9caac0;
+}
+
+.login-register-footer {
+  border-color: rgba(157, 179, 211, 0.18);
+}
+
+.login-security-note {
+  color: #9caac0;
+}
+
+.login-card:hover {
+  border-color: rgba(99, 180, 255, 0.42);
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.5);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-card {
+    animation: none !important;
+  }
+}
