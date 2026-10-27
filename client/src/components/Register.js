@@ -1,245 +1,442 @@
 
 import React, { useState } from "react";
-import {
-  registerOrganization,
-  registerUser,
-} from "../api/authApi";
+import "./Register.css";
+
+const API_URL = "http://localhost:5000/api/auth";
+
+const emptyForm = {
+  organizationName: "",
+  organizationEmail: "",
+  organizationId: "",
+  employeeId: "",
+  name: "",
+  email: "",
+  password: "",
+  confirmPassword: "",
+};
 
 function Register({ onRegisterSuccess, onShowLogin }) {
-  const [mode, setMode] = useState("organization");
-
-  const [organizationName, setOrganizationName] = useState("");
-  const [organizationEmail, setOrganizationEmail] = useState("");
-  const [organizationId, setOrganizationId] = useState("");
-  const [employeeId, setEmployeeId] = useState("");
-
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  const [mode, setMode] = useState("join");
+  const [form, setForm] = useState(emptyForm);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
 
-  const handleModeChange = (newMode) => {
-    setMode(newMode);
+  function handleChange(event) {
+    const { name, value } = event.target;
+
+    setForm((previous) => ({
+      ...previous,
+      [name]: value,
+    }));
+
     setError("");
-    setSuccess("");
-  };
+    setMessage("");
+  }
 
-  const handleSubmit = async (event) => {
+  function changeMode(nextMode) {
+    setMode(nextMode);
+    setError("");
+    setMessage("");
+    setShowPassword(false);
+    setShowConfirmPassword(false);
+  }
+
+  async function handleSubmit(event) {
     event.preventDefault();
+
     setError("");
-    setSuccess("");
+    setMessage("");
 
-    if (password.length < 8) {
-      setError("Password must be at least 8 characters.");
+    if (form.password.length < 8) {
+      setError("Password must contain at least 8 characters.");
       return;
     }
 
-    if (password !== confirmPassword) {
-      setError("Passwords do not match.");
+    if (form.password !== form.confirmPassword) {
+      setError("Passwords do not match. Please try again.");
       return;
     }
+
+    const payload =
+      mode === "organization"
+        ? {
+            organizationName: form.organizationName.trim(),
+            organizationEmail: form.organizationEmail.trim(),
+            name: form.name.trim(),
+            email: form.email.trim(),
+            password: form.password,
+          }
+        : {
+            organizationId: form.organizationId.trim(),
+            employeeId: form.employeeId.trim(),
+            name: form.name.trim(),
+            email: form.email.trim(),
+            password: form.password,
+          };
+
+    const endpoint =
+      mode === "organization"
+        ? "/register-organization"
+        : "/register";
 
     setLoading(true);
 
     try {
-      if (mode === "organization") {
-        await registerOrganization({
-          organizationName,
-          organizationEmail,
-          name,
-          email,
-          password,
-        });
+      const response = await fetch(`${API_URL}${endpoint}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
 
-        setSuccess(
-          "Organization registered successfully. You can now log in as its admin."
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          data.message || "Registration failed. Please try again."
         );
-
-        setOrganizationName("");
-        setOrganizationEmail("");
-        setName("");
-        setEmail("");
-        setPassword("");
-        setConfirmPassword("");
-      } else {
-        await registerUser({
-          name,
-          email,
-          password,
-          organizationId: organizationId.trim(),
-          employeeId: employeeId.trim(),
-        });
-
-        setSuccess(
-          "Registration request submitted successfully. Please wait for admin approval before logging in."
-        );
-
-        setOrganizationId("");
-        setEmployeeId("");
-        setName("");
-        setEmail("");
-        setPassword("");
-        setConfirmPassword("");
       }
+
+      if (mode === "organization") {
+        setMessage(
+          data.message ||
+            "Organization registered successfully. You can now log in."
+        );
+      } else {
+        setMessage(
+          data.message ||
+            "Registration request submitted. Wait for admin approval."
+        );
+      }
+
+      setForm(emptyForm);
+      setShowPassword(false);
+      setShowConfirmPassword(false);
     } catch (err) {
-      setError(err.message || "Registration failed.");
+      setError(err.message || "Unable to connect to the server.");
     } finally {
       setLoading(false);
     }
-  };
+  }
 
   return (
-    <div className="auth-page">
-      <form className="auth-card" onSubmit={handleSubmit}>
-        <h1>
-          {mode === "organization"
-            ? "Register Organization"
-            : "Join Organization"}
-        </h1>
+    <main className="register-page">
+      <div className="register-background register-background-one" />
+      <div className="register-background register-background-two" />
 
-        <p>
-          {mode === "organization"
-            ? "Create an organization and its admin account."
-            : "Submit your employee registration for admin approval."}
-        </p>
+      <section className="register-card">
+        <div className="register-brand">
+          <div className="register-brand-icon" aria-hidden="true">
+            <svg
+              viewBox="0 0 48 48"
+              width="30"
+              height="30"
+              fill="none"
+            >
+              <path
+                d="M24 4L40 10V22C40 32 33 39 24 44C15 39 8 32 8 22V10L24 4Z"
+                stroke="currentColor"
+                strokeWidth="3"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M17 24L22 29L32 18"
+                stroke="currentColor"
+                strokeWidth="3"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </div>
 
-        <div className="auth-switch">
+          <h1>Join SIMS</h1>
+          <p className="register-subtitle">
+            Security Incident Management System
+          </p>
+        </div>
+
+        <div className="register-tabs" role="tablist" aria-label="Registration type">
           <button
             type="button"
-            className="auth-link"
-            onClick={() => handleModeChange("organization")}
+            role="tab"
+            aria-selected={mode === "organization"}
+            className={`register-tab ${
+              mode === "organization" ? "selected" : ""
+            }`}
+            onClick={() => changeMode("organization")}
           >
-            Register Organization
+            <span className="register-tab-icon" aria-hidden="true">
+              ◈
+            </span>
+            <span>Register Organization</span>
           </button>
-          {" | "}
+
           <button
             type="button"
-            className="auth-link"
-            onClick={() => handleModeChange("employee")}
+            role="tab"
+            aria-selected={mode === "join"}
+            className={`register-tab ${
+              mode === "join" ? "selected" : ""
+            }`}
+            onClick={() => changeMode("join")}
           >
-            Join Organization
+            <span className="register-tab-icon" aria-hidden="true">
+              +
+            </span>
+            <span>Join Organization</span>
           </button>
         </div>
 
-        {error && <p className="auth-error">{error}</p>}
+        <div className="register-heading">
+          <h2>
+            {mode === "organization"
+              ? "Create your organization"
+              : "Create your employee account"}
+          </h2>
 
-        {success && (
-          <div className="auth-success">
-            <p>{success}</p>
+          <p>
+            {mode === "organization"
+              ? "Set up your organization and administrator account."
+              : "Enter your organization's details to request access."}
+          </p>
+        </div>
 
-            <button
-              type="button"
-              className="auth-link"
-              onClick={onShowLogin}
-            >
-              Go to Login
-            </button>
+        {error && (
+          <div className="register-alert register-alert-error" role="alert">
+            <span aria-hidden="true">!</span>
+            <p>{error}</p>
           </div>
         )}
 
-        {mode === "organization" && (
-          <>
-            <label>Organization Name</label>
-            <input
-              value={organizationName}
-              onChange={(e) => setOrganizationName(e.target.value)}
-              placeholder="Enter organization name"
-              required
-            />
+        {message && (
+          <div
+            className="register-alert register-alert-success"
+            role="status"
+          >
+            <span aria-hidden="true">✓</span>
+            <p>{message}</p>
+          </div>
+        )}
 
-            <label>Organization Email</label>
+        <form onSubmit={handleSubmit} className="register-form">
+          {mode === "organization" ? (
+            <>
+              <div className="register-field">
+                <label htmlFor="organizationName">
+                  Organization Name
+                </label>
+                <input
+                  id="organizationName"
+                  name="organizationName"
+                  type="text"
+                  value={form.organizationName}
+                  onChange={handleChange}
+                  placeholder="Enter your organization name"
+                  autoComplete="organization"
+                  required
+                  disabled={loading}
+                />
+              </div>
+
+              <div className="register-field">
+                <label htmlFor="organizationEmail">
+                  Organization Email
+                </label>
+                <input
+                  id="organizationEmail"
+                  name="organizationEmail"
+                  type="email"
+                  value={form.organizationEmail}
+                  onChange={handleChange}
+                  placeholder="company@example.com"
+                  autoComplete="email"
+                  required
+                  disabled={loading}
+                />
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="register-field">
+                <label htmlFor="organizationId">Organization ID</label>
+                <input
+                  id="organizationId"
+                  name="organizationId"
+                  type="text"
+                  value={form.organizationId}
+                  onChange={handleChange}
+                  placeholder="Enter your organization ID"
+                  autoComplete="off"
+                  required
+                  disabled={loading}
+                />
+                <small>
+                  Ask your organization administrator for this ID.
+                </small>
+              </div>
+
+              <div className="register-field">
+                <label htmlFor="employeeId">Employee ID</label>
+                <input
+                  id="employeeId"
+                  name="employeeId"
+                  type="text"
+                  value={form.employeeId}
+                  onChange={handleChange}
+                  placeholder="Enter your company employee ID"
+                  autoComplete="off"
+                  required
+                  disabled={loading}
+                />
+              </div>
+            </>
+          )}
+
+          <div className="register-field">
+            <label htmlFor="name">
+              {mode === "organization"
+                ? "Administrator Full Name"
+                : "Employee Full Name"}
+            </label>
             <input
+              id="name"
+              name="name"
+              type="text"
+              value={form.name}
+              onChange={handleChange}
+              placeholder="Enter your full name"
+              autoComplete="name"
+              maxLength={100}
+              required
+              disabled={loading}
+            />
+          </div>
+
+          <div className="register-field">
+            <label htmlFor="email">Email Address</label>
+            <input
+              id="email"
+              name="email"
               type="email"
-              value={organizationEmail}
-              onChange={(e) => setOrganizationEmail(e.target.value)}
-              placeholder="Enter organization email"
+              value={form.email}
+              onChange={handleChange}
+              placeholder="you@example.com"
+              autoComplete="email"
               required
+              disabled={loading}
             />
-          </>
-        )}
+          </div>
 
-        {mode === "employee" && (
-          <>
-            <label>Organization ID</label>
-            <input
-              value={organizationId}
-              onChange={(e) => setOrganizationId(e.target.value)}
-              placeholder="Enter your organization ID"
-              required
-            />
+          <div className="register-field">
+            <label htmlFor="password">Password</label>
+            <div className="register-password-wrap">
+              <input
+                id="password"
+                name="password"
+                type={showPassword ? "text" : "password"}
+                value={form.password}
+                onChange={handleChange}
+                placeholder="At least 8 characters"
+                autoComplete="new-password"
+                minLength={8}
+                required
+                disabled={loading}
+              />
 
-            <label>Employee ID</label>
-            <input
-              value={employeeId}
-              onChange={(e) => setEmployeeId(e.target.value)}
-              placeholder="Enter your company employee ID"
-              required
-            />
-          </>
-        )}
+              <button
+                type="button"
+                className="register-password-toggle"
+                onClick={() => setShowPassword((previous) => !previous)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                disabled={loading}
+              >
+                {showPassword ? "Hide" : "Show"}
+              </button>
+            </div>
+          </div>
 
-        <label>
-          {mode === "organization" ? "Admin Full Name" : "Employee Full Name"}
-        </label>
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Enter your full name"
-          required
-        />
+          <div className="register-field">
+            <label htmlFor="confirmPassword">Confirm Password</label>
+            <div className="register-password-wrap">
+              <input
+                id="confirmPassword"
+                name="confirmPassword"
+                type={showConfirmPassword ? "text" : "password"}
+                value={form.confirmPassword}
+                onChange={handleChange}
+                placeholder="Enter password again"
+                autoComplete="new-password"
+                minLength={8}
+                required
+                disabled={loading}
+              />
 
-        <label>Email Address</label>
-        <input
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="Enter your email"
-          required
-        />
+              <button
+                type="button"
+                className="register-password-toggle"
+                onClick={() =>
+                  setShowConfirmPassword((previous) => !previous)
+                }
+                aria-label={
+                  showConfirmPassword
+                    ? "Hide confirm password"
+                    : "Show confirm password"
+                }
+                disabled={loading}
+              >
+                {showConfirmPassword ? "Hide" : "Show"}
+              </button>
+            </div>
+          </div>
 
-        <label>Password</label>
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="At least 8 characters"
-          minLength={8}
-          required
-        />
+          <button
+            type="submit"
+            className="register-submit"
+            disabled={loading}
+          >
+            {loading ? (
+              <>
+                <span className="register-spinner" />
+                Processing...
+              </>
+            ) : mode === "organization" ? (
+              "Create Organization"
+            ) : (
+              "Submit Registration Request"
+            )}
+            {!loading && <span aria-hidden="true">→</span>}
+          </button>
 
-        <label>Confirm Password</label>
-        <input
-          type="password"
-          value={confirmPassword}
-          onChange={(e) => setConfirmPassword(e.target.value)}
-          placeholder="Enter password again"
-          required
-        />
+          {mode === "join" && (
+            <p className="register-approval-note">
+              <span aria-hidden="true">ⓘ</span>
+              Your account will be available after admin approval.
+            </p>
+          )}
+        </form>
 
-        <button type="submit" disabled={loading}>
-          {loading
-            ? "Please wait..."
-            : mode === "organization"
-              ? "Register Organization"
-              : "Submit Registration Request"}
-        </button>
-
-        <p className="auth-switch">
-          Already have an account?{" "}
+        <div className="register-footer">
+          <span>Already have an account?</span>
           <button
             type="button"
-            className="auth-link"
-            onClick={onShowLogin}
+            className="register-login-link"
+            onClick={onShowLogin || onRegisterSuccess}
           >
-            Login
+            Log in
+            <span aria-hidden="true"> →</span>
           </button>
+        </div>
+
+        <p className="register-security-note">
+          <span aria-hidden="true">🔒</span>
+          Secure registration · SIMS
         </p>
-      </form>
-    </div>
+      </section>
+    </main>
   );
 }
 

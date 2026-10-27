@@ -1,4 +1,3 @@
-
 const mongoose = require("mongoose");
 
 const userSchema = new mongoose.Schema(
@@ -46,11 +45,29 @@ const userSchema = new mongoose.Schema(
       enum: ["pending", "approved", "rejected"],
       default: "approved",
     },
+
+    // Keep removed accounts in the database.
+    isDeleted: {
+      type: Boolean,
+      default: false,
+    },
+
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
+
+    deletedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+  }
 );
 
-// Employee IDs must be unique within each organization.
 userSchema.index(
   { organizationId: 1, employeeId: 1 },
   {
